@@ -1,0 +1,323 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Financial App API",
+    "version": "1.0.0",
+    "description": "REST API for stock data and financial information"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8080",
+      "description": "Development server"
+    }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "summary": "Health check endpoint",
+        "responses": {
+          "200": {
+            "description": "Service is healthy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "example": "ok"
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Financial App Backend is running"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/stocks": {
+      "get": {
+        "summary": "Get list of stocks",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 50
+            },
+            "description": "Maximum number of stocks to return"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of stocks",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Stock"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/stocks/{symbol}": {
+      "get": {
+        "summary": "Get stock by symbol",
+        "parameters": [
+          {
+            "name": "symbol",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Stock symbol (e.g., AAPL)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Stock details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/Stock"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Stock not found"
+          }
+        }
+      }
+    },
+    "/api/v1/stocks/{symbol}/quote": {
+      "get": {
+        "summary": "Get real-time stock quote",
+        "parameters": [
+          {
+            "name": "symbol",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Stock symbol (e.g., AAPL)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Stock quote",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/StockQuote"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/stocks/{symbol}/history": {
+      "get": {
+        "summary": "Get historical stock data",
+        "parameters": [
+          {
+            "name": "symbol",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Stock symbol (e.g., AAPL)"
+          },
+          {
+            "name": "period",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": ["1d", "5d", "1m", "3m", "6m", "1y", "2y", "5y", "10y", "ytd", "max"],
+              "default": "1y"
+            },
+            "description": "Time period for historical data"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Historical stock data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/StockPrice"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Stock": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "symbol": {
+            "type": "string",
+            "example": "AAPL"
+          },
+          "name": {
+            "type": "string",
+            "example": "Apple Inc."
+          },
+          "exchange": {
+            "type": "string",
+            "example": "NASDAQ"
+          },
+          "sector": {
+            "type": "string",
+            "example": "Technology"
+          },
+          "industry": {
+            "type": "string",
+            "example": "Consumer Electronics"
+          },
+          "market_cap": {
+            "type": "number",
+            "format": "double"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "StockQuote": {
+        "type": "object",
+        "properties": {
+          "symbol": {
+            "type": "string",
+            "example": "AAPL"
+          },
+          "price": {
+            "type": "number",
+            "format": "double",
+            "example": 150.25
+          },
+          "change": {
+            "type": "number",
+            "format": "double",
+            "example": 2.50
+          },
+          "change_percent": {
+            "type": "number",
+            "format": "double",
+            "example": 1.69
+          },
+          "volume": {
+            "type": "integer",
+            "format": "int64",
+            "example": 1000000
+          },
+          "market_cap": {
+            "type": "number",
+            "format": "double",
+            "example": 2500000000
+          },
+          "previous_close": {
+            "type": "number",
+            "format": "double",
+            "example": 147.75
+          },
+          "last_updated": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "StockPrice": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "stock_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "date": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "open": {
+            "type": "number",
+            "format": "double"
+          },
+          "high": {
+            "type": "number",
+            "format": "double"
+          },
+          "low": {
+            "type": "number",
+            "format": "double"
+          },
+          "close": {
+            "type": "number",
+            "format": "double"
+          },
+          "volume": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      }
+    }
+  }
+} 
