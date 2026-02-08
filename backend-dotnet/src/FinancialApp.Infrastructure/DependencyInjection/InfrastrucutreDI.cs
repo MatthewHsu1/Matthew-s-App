@@ -10,7 +10,9 @@ namespace FinancialApp.Infrastructure.DependencyInjection
             services.AddAppDBContext(config);
 
             services.AddRepository();
-            
+
+            services.AddOptions(config);
+
             return services;
         }
     }
