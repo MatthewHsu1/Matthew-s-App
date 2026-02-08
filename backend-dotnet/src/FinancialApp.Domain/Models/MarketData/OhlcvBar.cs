@@ -1,9 +1,9 @@
-namespace FinancialApp.Domain.Models
+namespace FinancialApp.Domain.Models.MarketData
 {
     /// <summary>
     /// One OHLCV bar (candle). Used for historical series and indicators (RSI, MAs, 20-day high/low).
     /// </summary>
-    internal class OhlcvBar
+    public class OhlcvBar
     {
         /// <summary>
         /// Trading date for the bar.

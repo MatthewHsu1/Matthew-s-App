@@ -1,9 +1,9 @@
-namespace FinancialApp.Domain.Models
+namespace FinancialApp.Domain.Models.MarketData
 {
     /// <summary>
     /// Provider-agnostic current price/quote. Used by wheel and indicators; infrastructure maps provider responses to this.
     /// </summary>
-    public class MarketData
+    public class StockQuote
     {
         /// <summary>
         /// Stock or instrument symbol (e.g. AAPL, MSFT).
