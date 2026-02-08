@@ -1,3 +1,4 @@
+using FinancialApp.Application.DependencyInjection;
 using FinancialApp.Infrastructure.DependencyInjection;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -6,13 +7,17 @@ builder.Services.AddControllers();
 
 builder.Services.AddOpenApi();
 
+builder.Services.AddHttpClient();
+
 builder.Services.AddInfrastructure(builder.Configuration);
+
+builder.Services.AddApplication(builder.Configuration);
 
 var app = builder.Build();
 
 if (app.Environment.IsDevelopment())
 {
-app.MapOpenApi();
+    app.MapOpenApi();
 }
 
 app.UseHttpsRedirection();
