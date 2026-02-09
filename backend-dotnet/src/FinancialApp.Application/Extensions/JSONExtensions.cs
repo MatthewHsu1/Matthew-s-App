@@ -8,5 +8,11 @@ namespace FinancialApp.Application.Extensions
         {
             PropertyNameCaseInsensitive = true
         };
+
+        public static readonly JsonSerializerOptions JsonCamelCaseOptions = new()
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            PropertyNameCaseInsensitive = true
+        };
     }
 }
