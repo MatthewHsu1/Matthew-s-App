@@ -1,4 +1,4 @@
-﻿using FinancialApp.Domain.Models.AlphaVantage;
+﻿using FinancialApp.Domain.Options.AlphaVantage;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Polly;

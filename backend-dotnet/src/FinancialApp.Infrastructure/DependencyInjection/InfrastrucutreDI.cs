@@ -11,9 +11,13 @@ namespace FinancialApp.Infrastructure.DependencyInjection
 
             services.AddRepository();
 
+            services.AddServices();
+
             services.AddOptions(config);
 
             services.AddRateLimiting();
+
+            services.AddDistributedCache(config);
 
             return services;
         }

@@ -1,4 +1,4 @@
-﻿namespace FinancialApp.Domain.Models.AlphaVantage
+﻿namespace FinancialApp.Domain.Options.AlphaVantage
 {
     /// <summary>
     /// Options for the AlphaVantage API.

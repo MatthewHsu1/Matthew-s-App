@@ -1,8 +1,9 @@
 ﻿using FinancialApp.Application.Extensions;
-using FinancialApp.Domain.Abstractions;
+using FinancialApp.Domain.Interfaces;
 using FinancialApp.Domain.Models.AlphaVantage;
 using FinancialApp.Domain.Models.Exception;
 using FinancialApp.Domain.Models.MarketData;
+using FinancialApp.Domain.Options.AlphaVantage;
 using Microsoft.Extensions.Options;
 using System.Globalization;
 using System.Net;
@@ -99,12 +100,17 @@ namespace FinancialApp.Infrastructure.Services.AlphaVantage
                     break;
             }
 
+            var outputSize = "compact";
+
+            if (function == "TIME_SERIES_DAILY" && (to.Date - from.Date).TotalDays > 100)
+                outputSize = "full";
+
             var query = new Dictionary<string, string>
             {
                 ["function"] = function,
                 ["symbol"] = ticker,
                 ["apikey"] = options.Value.ApiKey,
-                ["outputsize"] = "compact"
+                ["outputsize"] = outputSize
             };
 
             var uri = AlphaVantageResponseParser.BuildUri("query", query);

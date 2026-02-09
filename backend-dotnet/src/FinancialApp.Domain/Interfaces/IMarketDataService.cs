@@ -1,6 +1,6 @@
 ﻿using FinancialApp.Domain.Models.MarketData;
 
-namespace FinancialApp.Domain.Abstractions
+namespace FinancialApp.Domain.Interfaces
 {
     /// <summary>
     /// Provider-agnostic market data.
