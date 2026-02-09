@@ -24,9 +24,7 @@ namespace FinancialApp.Infrastructure.Services.AlphaVantage
 
             var uri = AlphaVantageResponseParser.BuildUri("query", query);
 
-            using var httpClient = httpFactory.CreateClient();
-            httpClient.BaseAddress = new Uri(options.Value.BaseUrl.TrimEnd('/') + "/");
-
+            using var httpClient = httpFactory.CreateClient("AlphaVantage");
 
             Func<Task<HttpResponseMessage>> action = async () =>
             {
@@ -111,8 +109,7 @@ namespace FinancialApp.Infrastructure.Services.AlphaVantage
 
             var uri = AlphaVantageResponseParser.BuildUri("query", query);
 
-            using var httpClient = httpFactory.CreateClient();
-            httpClient.BaseAddress = new Uri(options.Value.BaseUrl.TrimEnd('/') + "/");
+            using var httpClient = httpFactory.CreateClient("AlphaVantage");
 
             Func<Task<HttpResponseMessage>> action = async () =>
             {

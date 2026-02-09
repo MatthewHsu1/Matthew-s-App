@@ -13,6 +13,8 @@ namespace FinancialApp.Infrastructure.DependencyInjection
 
             services.AddOptions(config);
 
+            services.AddRateLimiting();
+
             return services;
         }
     }

@@ -3,7 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace FinancialApp.Infrastructure.DependencyInjection
 {
-    public static class RepositoryDI
+    internal static class RepositoryDI
     {
         public static IServiceCollection AddRepository(this IServiceCollection services)
         {

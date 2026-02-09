@@ -5,7 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace FinancialApp.Infrastructure.DependencyInjection
 {
-    public static class AppDBContextDI
+    internal static class AppDBContextDI
     {
         public static IServiceCollection AddAppDBContext(this IServiceCollection services, IConfiguration config)
         {

@@ -4,7 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace FinancialApp.Infrastructure.DependencyInjection
 {
-    public static class OptionsDI
+    internal static class OptionsDI
     {
         public static IServiceCollection AddOptions(this IServiceCollection services, IConfiguration configuration)
         {

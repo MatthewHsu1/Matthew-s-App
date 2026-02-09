@@ -1,3 +1,4 @@
+using FinancialApp.Api.DependencyInjection;
 using FinancialApp.Application.DependencyInjection;
 using FinancialApp.Infrastructure.DependencyInjection;
 
@@ -7,7 +8,7 @@ builder.Services.AddControllers();
 
 builder.Services.AddOpenApi();
 
-builder.Services.AddHttpClient();
+builder.Services.AddRateLimiting();
 
 builder.Services.AddInfrastructure(builder.Configuration);
 
@@ -21,6 +22,8 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+app.UseRateLimiter();
 
 app.UseAuthorization();
 
