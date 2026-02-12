@@ -119,5 +119,64 @@ namespace FinancialApp.Infrastructure.Services.AlphaVantage
             if (string.IsNullOrWhiteSpace(s)) return 0;
             return long.TryParse(s, NumberStyles.Any, CultureInfo.InvariantCulture, out var v) ? v : 0;
         }
+
+        public static IReadOnlyList<OptionContractSummary> ParseOptionContracts(IEnumerable<HistoricalOptionsContractDto>? contracts)
+        {
+            if (contracts is null)
+                return [];
+
+            var parsed = new List<OptionContractSummary>();
+            var seenSymbols = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var contract in contracts)
+            {
+                if (contract is null || string.IsNullOrWhiteSpace(contract.ContractId))
+                    continue;
+
+                if (!TryParseOptionType(contract.Type, out var type))
+                    continue;
+
+                if (!decimal.TryParse(contract.Strike, NumberStyles.Any, CultureInfo.InvariantCulture, out var strike))
+                    continue;
+
+                if (!DateOnly.TryParse(contract.Expiration, CultureInfo.InvariantCulture, DateTimeStyles.None, out var expiration))
+                    continue;
+
+                if (!seenSymbols.Add(contract.ContractId))
+                    continue;
+
+                parsed.Add(new OptionContractSummary
+                {
+                    Symbol = contract.ContractId,
+                    Type = type,
+                    Strike = strike,
+                    Expiration = expiration
+                });
+            }
+
+            return parsed
+                .OrderBy(c => c.Expiration)
+                .ThenBy(c => c.Strike)
+                .ThenBy(c => c.Type)
+                .ToList();
+        }
+
+        private static bool TryParseOptionType(string? rawType, out OptionContractType type)
+        {
+            if (string.Equals(rawType, "call", StringComparison.OrdinalIgnoreCase))
+            {
+                type = OptionContractType.Call;
+                return true;
+            }
+
+            if (string.Equals(rawType, "put", StringComparison.OrdinalIgnoreCase))
+            {
+                type = OptionContractType.Put;
+                return true;
+            }
+
+            type = default;
+            return false;
+        }
     }
 }

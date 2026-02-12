@@ -29,5 +29,15 @@ namespace FinancialApp.Domain.Interfaces
             DateTime to,
             string? interval = "1D",
             CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Fetches full options chain contracts for the given ticker across expirations and strikes.
+        /// </summary>
+        /// <param name="ticker">Underlying symbol.</param>
+        /// <param name="cancellationToken">Cancellation token.</param>
+        /// <returns>Normalized option contracts used for strike/expiration selection.</returns>
+        Task<IReadOnlyList<OptionContractSummary>> GetOptionChainAsync(
+            string ticker,
+            CancellationToken cancellationToken = default);
     }
 }

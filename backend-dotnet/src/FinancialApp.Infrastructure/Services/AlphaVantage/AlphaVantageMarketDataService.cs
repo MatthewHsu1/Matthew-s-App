@@ -158,5 +158,47 @@ namespace FinancialApp.Infrastructure.Services.AlphaVantage
                 .OrderBy(b => b.Date)
                 .ToList();
         }
+
+        public async Task<IReadOnlyList<OptionContractSummary>> GetOptionChainAsync(
+            string ticker,
+            CancellationToken cancellationToken = default)
+        {
+            var query = new Dictionary<string, string>
+            {
+                ["function"] = "HISTORICAL_OPTIONS",
+                ["symbol"] = ticker,
+                ["apikey"] = options.Value.ApiKey
+            };
+
+            var uri = AlphaVantageResponseParser.BuildUri("query", query);
+
+            using var httpClient = httpFactory.CreateClient("AlphaVantage");
+
+            Func<Task<HttpResponseMessage>> action = async () =>
+            {
+                var response = await httpClient.GetAsync(uri, cancellationToken).ConfigureAwait(false);
+
+                if (response.StatusCode == HttpStatusCode.TooManyRequests)
+                    throw new TransientHttpFailureException(response.StatusCode);
+
+                if ((int)response.StatusCode >= 500)
+                    throw new TransientHttpFailureException(response.StatusCode);
+
+                response.EnsureSuccessStatusCode();
+
+                return response;
+            };
+
+            var response = await action.RetryAsync<HttpResponseMessage, TransientHttpFailureException>(
+                retryCount: 3,
+                delaySeconds: 2,
+                delayProvider: attempt => TimeSpan.FromSeconds(Math.Pow(2, attempt)));
+
+            var json = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+
+            var parsed = JsonSerializer.Deserialize<HistoricalOptionsResponse>(json, JSONExtensions.JsonOptions);
+
+            return AlphaVantageResponseParser.ParseOptionContracts(parsed?.Data);
+        }
     }
 }

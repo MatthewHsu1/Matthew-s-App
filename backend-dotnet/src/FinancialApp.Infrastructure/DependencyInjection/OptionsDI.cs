@@ -1,5 +1,6 @@
 ﻿using FinancialApp.Domain.Options.AlphaVantage;
 using FinancialApp.Domain.Options.Redis;
+using FinancialApp.Domain.Options.Supabase;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -12,6 +13,8 @@ namespace FinancialApp.Infrastructure.DependencyInjection
             services.Configure<AlphaVantageOptions>(configuration.GetSection(AlphaVantageOptions.SectionName));
 
             services.Configure<RedisOptions>(configuration.GetSection(RedisOptions.SectionName));
+
+            services.Configure<SupabaseOptions>(configuration.GetSection(SupabaseOptions.SectionName));
 
             return services;
         }

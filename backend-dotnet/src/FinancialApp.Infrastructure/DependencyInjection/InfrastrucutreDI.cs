@@ -7,7 +7,7 @@ namespace FinancialApp.Infrastructure.DependencyInjection
     {
         public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration config)
         {
-            services.AddAppDBContext(config);
+            services.AddAppDBContext();
 
             services.AddRepository();
 
