@@ -1,19 +1,4 @@
 services:
-  # PostgreSQL Database
-  postgres:
-    image: postgres:15-alpine
-    container_name: financial-app-db
-    environment:
-      POSTGRES_DB: financial_app
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    networks:
-      - financial-app-network
-
   # Redis Cache
   redis:
     image: redis:7-alpine
@@ -30,12 +15,11 @@ services:
       dockerfile: Dockerfile
     container_name: financial-app-backend
     environment:
-      - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=financial_app;Username=postgres;Password=password
+      - Supabase__ConnectionString=${SUPABASE_CONNECTION_STRING}
       - Redis__Configuration=redis:6379
     ports:
       - "8080:8080"
     depends_on:
-      - postgres
       - redis
     networks:
       - financial-app-network
@@ -61,9 +45,6 @@ services:
     environment:
       - NODE_ENV=development
 
-volumes:
-  postgres_data:
-
 networks:
   financial-app-network:
-    driver: bridge 
+    driver: bridge
