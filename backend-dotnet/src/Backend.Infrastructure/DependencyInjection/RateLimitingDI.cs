@@ -2,6 +2,8 @@ using Backend.Domain.Options.AlphaVantage;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Polly;
+using Polly.RateLimiting;
+using Polly.Retry;
 using System.Threading.RateLimiting;
 
 namespace Backend.Infrastructure.DependencyInjection
@@ -26,6 +28,24 @@ namespace Backend.Infrastructure.DependencyInjection
                         Window = TimeSpan.FromMinutes(1),
                         QueueLimit = 0
                     }));
+
+                    builder.AddRetry(new RetryStrategyOptions<HttpResponseMessage>
+                    {
+                        MaxRetryAttempts = 3,
+                        BackoffType = DelayBackoffType.Exponential,
+                        UseJitter = true,
+                        Delay = TimeSpan.FromSeconds(2),
+                        ShouldHandle = new PredicateBuilder<HttpResponseMessage>()
+                            .HandleResult(r => (int)r.StatusCode >= 500)
+                            .HandleResult(r => r.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
+                            .Handle<HttpRequestException>()
+                            .Handle<TaskCanceledException>()
+                            .Handle<RateLimiterRejectedException>(),
+                        OnRetry = args =>
+                        {
+                            return ValueTask.CompletedTask;
+                        }
+                    });
                 });
 
             return services;

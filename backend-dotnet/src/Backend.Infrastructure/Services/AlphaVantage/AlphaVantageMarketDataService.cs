@@ -1,12 +1,10 @@
 using Backend.Application.Extensions;
 using Backend.Domain.Interfaces;
 using Backend.Domain.Models.AlphaVantage;
-using Backend.Domain.Models.Exception;
 using Backend.Domain.Models.MarketData;
 using Backend.Domain.Options.AlphaVantage;
 using Microsoft.Extensions.Options;
 using System.Globalization;
-using System.Net;
 using System.Text.Json;
 
 namespace Backend.Infrastructure.Services.AlphaVantage
@@ -25,27 +23,11 @@ namespace Backend.Infrastructure.Services.AlphaVantage
 
             var uri = AlphaVantageResponseParser.BuildUri("query", query);
 
-            using var httpClient = httpFactory.CreateClient("AlphaVantage");
+            var httpClient = httpFactory.CreateClient("AlphaVantage");
 
-            Func<Task<HttpResponseMessage>> action = async () =>
-            {
-                var response = await httpClient.GetAsync(uri, cancellationToken).ConfigureAwait(false);
+            var response = await httpClient.GetAsync(uri, cancellationToken).ConfigureAwait(false);
 
-                if (response.StatusCode == HttpStatusCode.TooManyRequests)
-                    throw new TransientHttpFailureException(response.StatusCode);
-
-                if ((int)response.StatusCode >= 500)
-                    throw new TransientHttpFailureException(response.StatusCode);
-
-                response.EnsureSuccessStatusCode();
-
-                return response;
-            };
-
-            var response = await action.RetryAsync<HttpResponseMessage, TransientHttpFailureException>(
-                retryCount: 3,
-                delaySeconds: 2,
-                delayProvider: attempt => TimeSpan.FromSeconds(Math.Pow(2, attempt)));
+            response.EnsureSuccessStatusCode();
 
             var json = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
 
@@ -115,27 +97,11 @@ namespace Backend.Infrastructure.Services.AlphaVantage
 
             var uri = AlphaVantageResponseParser.BuildUri("query", query);
 
-            using var httpClient = httpFactory.CreateClient("AlphaVantage");
+            var httpClient = httpFactory.CreateClient("AlphaVantage");
 
-            Func<Task<HttpResponseMessage>> action = async () =>
-            {
-                var response = await httpClient.GetAsync(uri, cancellationToken).ConfigureAwait(false);
+            var response = await httpClient.GetAsync(uri, cancellationToken).ConfigureAwait(false);
 
-                if (response.StatusCode == HttpStatusCode.TooManyRequests)
-                    throw new TransientHttpFailureException(response.StatusCode);
-
-                if ((int)response.StatusCode >= 500)
-                    throw new TransientHttpFailureException(response.StatusCode);
-
-                response.EnsureSuccessStatusCode();
-
-                return response;
-            };
-
-            var response = await action.RetryAsync<HttpResponseMessage, TransientHttpFailureException>(
-                retryCount: 3,
-                delaySeconds: 2,
-                delayProvider: attempt => TimeSpan.FromSeconds(Math.Pow(2, attempt)));
+            response.EnsureSuccessStatusCode();
 
             var json = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
 
@@ -159,10 +125,15 @@ namespace Backend.Infrastructure.Services.AlphaVantage
                 .ToList();
         }
 
-        public async Task<IReadOnlyList<OptionContractSummary>> GetOptionChainAsync(
+        public async Task<OptionChainSnapshot?> GetOptionChainAsync(
             string ticker,
             CancellationToken cancellationToken = default)
         {
+            var underlyingQuote = await GetCurrentPriceAsync(ticker, cancellationToken).ConfigureAwait(false);
+
+            if (underlyingQuote is null)
+                return null;
+
             var query = new Dictionary<string, string>
             {
                 ["function"] = "HISTORICAL_OPTIONS",
@@ -172,33 +143,23 @@ namespace Backend.Infrastructure.Services.AlphaVantage
 
             var uri = AlphaVantageResponseParser.BuildUri("query", query);
 
-            using var httpClient = httpFactory.CreateClient("AlphaVantage");
+            var httpClient = httpFactory.CreateClient("AlphaVantage");
 
-            Func<Task<HttpResponseMessage>> action = async () =>
-            {
-                var response = await httpClient.GetAsync(uri, cancellationToken).ConfigureAwait(false);
+            var response = await httpClient.GetAsync(uri, cancellationToken).ConfigureAwait(false);
 
-                if (response.StatusCode == HttpStatusCode.TooManyRequests)
-                    throw new TransientHttpFailureException(response.StatusCode);
-
-                if ((int)response.StatusCode >= 500)
-                    throw new TransientHttpFailureException(response.StatusCode);
-
-                response.EnsureSuccessStatusCode();
-
-                return response;
-            };
-
-            var response = await action.RetryAsync<HttpResponseMessage, TransientHttpFailureException>(
-                retryCount: 3,
-                delaySeconds: 2,
-                delayProvider: attempt => TimeSpan.FromSeconds(Math.Pow(2, attempt)));
+            response.EnsureSuccessStatusCode();
 
             var json = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
 
             var parsed = JsonSerializer.Deserialize<HistoricalOptionsResponse>(json, JSONExtensions.JsonOptions);
 
-            return AlphaVantageResponseParser.ParseOptionContracts(parsed?.Data);
+            return AlphaVantageResponseParser.ParseOptionChainSnapshot(
+                ticker: underlyingQuote.Ticker,
+                underlyingPrice: underlyingQuote.Price,
+                asOf: underlyingQuote.Timestamp,
+                contracts: parsed?.Data,
+                defaultPremiumBasis: PremiumBasis.Mid,
+                atmTolerancePercent: 0.5m);
         }
     }
 }

@@ -27,5 +27,29 @@ namespace Backend.Domain.Models.AlphaVantage
 
         [JsonPropertyName("expiration")]
         public string? Expiration { get; set; }
+
+        [JsonPropertyName("bid")]
+        public string? Bid { get; set; }
+
+        [JsonPropertyName("ask")]
+        public string? Ask { get; set; }
+
+        [JsonPropertyName("last")]
+        public string? Last { get; set; }
+
+        [JsonPropertyName("implied_volatility")]
+        public string? ImpliedVolatility { get; set; }
+
+        [JsonPropertyName("delta")]
+        public string? Delta { get; set; }
+
+        [JsonPropertyName("gamma")]
+        public string? Gamma { get; set; }
+
+        [JsonPropertyName("theta")]
+        public string? Theta { get; set; }
+
+        [JsonPropertyName("vega")]
+        public string? Vega { get; set; }
     }
 }

@@ -120,15 +120,18 @@ namespace Backend.Infrastructure.Services.AlphaVantage
             return long.TryParse(s, NumberStyles.Any, CultureInfo.InvariantCulture, out var v) ? v : 0;
         }
 
-        public static IReadOnlyList<OptionContractSummary> ParseOptionContracts(IEnumerable<HistoricalOptionsContractDto>? contracts)
+        public static OptionChainSnapshot ParseOptionChainSnapshot(
+            string ticker,
+            decimal underlyingPrice,
+            DateTime asOf,
+            IEnumerable<HistoricalOptionsContractDto>? contracts,
+            PremiumBasis defaultPremiumBasis = PremiumBasis.Mid,
+            decimal atmTolerancePercent = 0.5m)
         {
-            if (contracts is null)
-                return [];
-
-            var parsed = new List<OptionContractSummary>();
+            var parsed = new List<OptionContractQuote>();
             var seenSymbols = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-            foreach (var contract in contracts)
+            foreach (var contract in contracts ?? [])
             {
                 if (contract is null || string.IsNullOrWhiteSpace(contract.ContractId))
                     continue;
@@ -145,20 +148,126 @@ namespace Backend.Infrastructure.Services.AlphaVantage
                 if (!seenSymbols.Add(contract.ContractId))
                     continue;
 
-                parsed.Add(new OptionContractSummary
+                var bid = ParseDecimal(contract.Bid);
+                var ask = ParseDecimal(contract.Ask);
+                var last = ParseDecimal(contract.Last);
+                var impliedVolatility = ParseDecimal(contract.ImpliedVolatility);
+
+                var delta = ParseDecimal(contract.Delta);
+                var gamma = ParseDecimal(contract.Gamma);
+                var theta = ParseDecimal(contract.Theta);
+                var vega = ParseDecimal(contract.Vega);
+
+                var greeks = new OptionGreeks
+                {
+                    Delta = delta,
+                    Gamma = gamma,
+                    Theta = theta,
+                    Vega = vega
+                };
+
+                var hasAnyGreeks = delta.HasValue || gamma.HasValue || theta.HasValue || vega.HasValue;
+                var hasCompleteGreeks = delta.HasValue && gamma.HasValue && theta.HasValue && vega.HasValue;
+
+                var mid = ComputeMid(bid, ask);
+                var premium = SelectPremium(defaultPremiumBasis, bid, ask, last, mid);
+
+                parsed.Add(new OptionContractQuote
                 {
                     Symbol = contract.ContractId,
                     Type = type,
                     Strike = strike,
-                    Expiration = expiration
+                    Expiration = expiration,
+                    Bid = bid,
+                    Ask = ask,
+                    Last = last,
+                    Mid = mid,
+                    SelectedPremium = premium.Value,
+                    SelectedPremiumBasis = premium.Basis,
+                    ImpliedVolatility = impliedVolatility,
+                    Greeks = hasAnyGreeks ? greeks : null,
+                    Moneyness = ComputeMoneyness(type, strike, underlyingPrice, atmTolerancePercent),
+                    HasCompleteGreeks = hasCompleteGreeks,
+                    SelectionEligibilityReason = hasCompleteGreeks ? null : "missing_greeks"
                 });
             }
 
-            return parsed
-                .OrderBy(c => c.Expiration)
-                .ThenBy(c => c.Strike)
-                .ThenBy(c => c.Type)
-                .ToList();
+            return new OptionChainSnapshot
+            {
+                Ticker = ticker,
+                UnderlyingPrice = underlyingPrice,
+                AsOf = asOf,
+                Contracts = parsed
+                    .OrderBy(c => c.Expiration)
+                    .ThenBy(c => c.Strike)
+                    .ThenBy(c => c.Type)
+                    .ThenBy(c => c.Symbol, StringComparer.OrdinalIgnoreCase)
+                    .ToList()
+            };
+        }
+
+        private static decimal? ComputeMid(decimal? bid, decimal? ask)
+        {
+            if (!bid.HasValue || !ask.HasValue || bid.Value <= 0m || ask.Value <= 0m)
+                return null;
+
+            return (bid.Value + ask.Value) / 2m;
+        }
+
+        private static (decimal? Value, PremiumBasis? Basis) SelectPremium(
+            PremiumBasis defaultBasis,
+            decimal? bid,
+            decimal? ask,
+            decimal? last,
+            decimal? mid)
+        {
+            var ranked = defaultBasis switch
+            {
+                PremiumBasis.Bid => new (PremiumBasis Basis, decimal? Value)[]
+                {
+                    (PremiumBasis.Bid, bid), (PremiumBasis.Mid, mid), (PremiumBasis.Last, last), (PremiumBasis.Ask, ask)
+                },
+                PremiumBasis.Ask => new (PremiumBasis Basis, decimal? Value)[]
+                {
+                    (PremiumBasis.Ask, ask), (PremiumBasis.Mid, mid), (PremiumBasis.Last, last), (PremiumBasis.Bid, bid)
+                },
+                PremiumBasis.Last => new (PremiumBasis Basis, decimal? Value)[]
+                {
+                    (PremiumBasis.Last, last), (PremiumBasis.Mid, mid), (PremiumBasis.Bid, bid), (PremiumBasis.Ask, ask)
+                },
+                _ =>
+                [
+                    (PremiumBasis.Mid, mid), (PremiumBasis.Last, last), (PremiumBasis.Bid, bid), (PremiumBasis.Ask, ask)
+                ]
+            };
+
+            foreach (var candidate in ranked)
+            {
+                if (candidate.Value.HasValue)
+                    return (candidate.Value, candidate.Basis);
+            }
+
+            return (null, null);
+        }
+
+        private static OptionMoneyness ComputeMoneyness(
+            OptionContractType type,
+            decimal strike,
+            decimal underlyingPrice,
+            decimal atmTolerancePercent)
+        {
+            if (underlyingPrice <= 0m)
+                return OptionMoneyness.ATM;
+
+            var tolerance = underlyingPrice * (atmTolerancePercent / 100m);
+
+            if (Math.Abs(strike - underlyingPrice) <= tolerance)
+                return OptionMoneyness.ATM;
+
+            if (type == OptionContractType.Call)
+                return strike < underlyingPrice ? OptionMoneyness.ITM : OptionMoneyness.OTM;
+
+            return strike > underlyingPrice ? OptionMoneyness.ITM : OptionMoneyness.OTM;
         }
 
         private static bool TryParseOptionType(string? rawType, out OptionContractType type)

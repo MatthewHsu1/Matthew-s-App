@@ -35,8 +35,8 @@ namespace Backend.Domain.Interfaces
         /// </summary>
         /// <param name="ticker">Underlying symbol.</param>
         /// <param name="cancellationToken">Cancellation token.</param>
-        /// <returns>Normalized option contracts used for strike/expiration selection.</returns>
-        Task<IReadOnlyList<OptionContractSummary>> GetOptionChainAsync(
+        /// <returns>Normalized option chain snapshot used for strike/expiration/delta selection.</returns>
+        Task<OptionChainSnapshot?> GetOptionChainAsync(
             string ticker,
             CancellationToken cancellationToken = default);
     }
