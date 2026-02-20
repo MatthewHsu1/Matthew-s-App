@@ -19,6 +19,10 @@ namespace Backend.Application.DependencyInjection
                 var options = sp.GetRequiredService<IOptions<TechnicalIndicatorsCacheOptions>>();
                 return new CachingTechnicalIndicatorsService(inner, cache, options);
             });
+            service.AddScoped<IWheelStateService, WheelStateService>();
+            service.AddScoped<IWheelReconciliationService, WheelReconciliationService>();
+            service.AddSingleton<IBrokerPositionsProvider, NullBrokerPositionsProvider>();
+            service.AddHostedService<WheelReconciliationStartupService>();
 
             return service;
         }
