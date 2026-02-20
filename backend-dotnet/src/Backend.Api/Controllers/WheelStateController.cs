@@ -15,9 +15,13 @@ public sealed class WheelStateController(
     [HttpGet("{ticker}")]
     [ProducesResponseType(typeof(WheelStateResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> GetByTickerAsync(string ticker, CancellationToken cancellationToken)
     {
-        var normalizedTicker = new Ticker(ticker);
+        Ticker normalizedTicker;
+        try { normalizedTicker = new Ticker(ticker); }
+        catch (ArgumentException ex) { return ValidationProblem(ex.Message); }
+
         var state = await wheelStateService.GetByTickerAsync(normalizedTicker, cancellationToken);
 
         if (state is null)
@@ -75,13 +79,23 @@ public sealed class WheelStateController(
 
     [HttpPost("reconcile")]
     [ProducesResponseType(typeof(WheelReconcileResponse), StatusCodes.Status202Accepted)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> ReconcileAsync(
         [FromBody] ReconcileWheelStateRequest? request,
         CancellationToken cancellationToken)
     {
         IReadOnlyCollection<Ticker>? tickers = null;
         if (request?.Tickers is { Count: > 0 } rawTickers)
-            tickers = rawTickers.Select(t => new Ticker(t)).Distinct().ToArray();
+        {
+            try
+            {
+                tickers = rawTickers.Select(t => new Ticker(t)).Distinct().ToArray();
+            }
+            catch (ArgumentException ex)
+            {
+                return ValidationProblem(ex.Message);
+            }
+        }
 
         var result = await reconciliationService.ReconcileAsync(tickers, cancellationToken);
 

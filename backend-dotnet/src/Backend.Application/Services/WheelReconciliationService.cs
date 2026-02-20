@@ -167,9 +167,6 @@ namespace Backend.Application.Services
         }
 
         private static JsonDocument CreateBucketMetadata(string bucket)
-        {
-            using var document = JsonDocument.Parse($$"""{"bucket":"{{bucket}}"}""");
-            return JsonDocument.Parse(document.RootElement.GetRawText());
-        }
+            => JsonDocument.Parse($$"""{"bucket":"{{bucket}}"}""");
     }
 }
