@@ -14,11 +14,11 @@ namespace Backend.Domain.Models.Wheel
         /// Initializes a <see cref="Ticker"/> by trimming and uppercasing <paramref name="value"/>.
         /// </summary>
         /// <param name="value">Raw ticker symbol. Must not be empty or whitespace.</param>
-        /// <exception cref="ArgumentException">Thrown when <paramref name="value"/> is empty or whitespace.</exception>
+        /// <exception cref="ArgumentException">Thrown when <paramref name="value"/> is null, empty, or whitespace.</exception>
         public Ticker(string value)
         {
             if (string.IsNullOrWhiteSpace(value))
-                throw new ArgumentException("Ticker cannot be empty or whitespace.", nameof(value));
+                throw new ArgumentException("Ticker cannot be null, empty, or whitespace.", nameof(value));
             Value = value.Trim().ToUpperInvariant();
         }
 
