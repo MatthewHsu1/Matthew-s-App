@@ -1,11 +1,12 @@
 using Backend.Application.Interfaces;
 using Backend.Domain.Interfaces;
 using Backend.Domain.Models.MarketData;
-using Backend.Domain.Services;
 
 namespace Backend.Application.Services
 {
-    public sealed class TechnicalIndicatorsService(IMarketDataService marketDataService)
+    public sealed class TechnicalIndicatorsService(
+        IMarketDataService marketDataService,
+        ITechnicalIndicatorCalculator technicalIndicatorCalculator)
         : ITechnicalIndicatorsService
     {
         /// <summary>
@@ -43,9 +44,9 @@ namespace Backend.Application.Services
 
             var asOf = ordered[^1].Date;
 
-            var rsi14 = TechnicalIndicatorCalculator.ComputeRsi14(ordered);
-            var (ma50, ma200) = TechnicalIndicatorCalculator.ComputeMovingAverages(ordered);
-            var (twentyDayHigh, twentyDayLow) = TechnicalIndicatorCalculator.ComputeTwentyDayHighLow(ordered);
+            var rsi14 = technicalIndicatorCalculator.ComputeRsi14(ordered);
+            var (ma50, ma200) = technicalIndicatorCalculator.ComputeMovingAverages(ordered);
+            var (twentyDayHigh, twentyDayLow) = technicalIndicatorCalculator.ComputeTwentyDayHighLow(ordered);
 
             return new TechnicalIndicatorsResult
             {
