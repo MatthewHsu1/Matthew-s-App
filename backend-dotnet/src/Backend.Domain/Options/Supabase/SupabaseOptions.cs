@@ -7,7 +7,12 @@ namespace Backend.Domain.Options.Supabase
         /// <summary>
         /// PostgreSQL connection string.
         /// </summary>
-        public string ConnectionString { get; set; } = string.Empty;
+        public string DefaultConnection { get; set; } = string.Empty;
+
+        /// <summary>
+        /// PostgreSQL connection string for migrations.
+        /// </summary>
+        public string MigrationConnection { get; set; } = string.Empty;
 
     }
 }

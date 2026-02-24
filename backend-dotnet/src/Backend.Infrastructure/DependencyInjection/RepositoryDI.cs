@@ -1,3 +1,4 @@
+using Backend.Application.Interfaces;
 using Backend.Infrastructure.Repositories;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -8,6 +9,7 @@ namespace Backend.Infrastructure.DependencyInjection
         public static IServiceCollection AddRepository(this IServiceCollection services)
         {
             services.AddScoped<IEulerpoolRepository, EulerpoolRepository>();
+            services.AddScoped<IWheelStateRepository, WheelStateRepository>();
 
             return services;
         }

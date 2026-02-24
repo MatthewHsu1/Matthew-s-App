@@ -109,7 +109,7 @@ public class AlphaVantageMarketDataServiceOptionsTests
     }
 
     [Fact]
-    public async Task GetOptionChainAsync_RetriesOnTransientServerError()
+    public async Task GetOptionChainAsync_PropagatesFailureWhenOptionsEndpointReturnsServerError()
     {
         var quotePayload = """
             {
@@ -121,20 +121,10 @@ public class AlphaVantageMarketDataServiceOptionsTests
             }
             """;
 
-        var optionPayload = """
-            {
-              "endpoint": "Historical Options",
-              "data": [
-                { "contractID": "AAPL250117P00190000", "type": "put", "strike": "190", "expiration": "2025-01-17" }
-              ]
-            }
-            """;
-
         var handler = new SequenceHttpMessageHandler(
         [
             new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(quotePayload, Encoding.UTF8, "application/json") },
-            new HttpResponseMessage(HttpStatusCode.InternalServerError),
-            new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(optionPayload, Encoding.UTF8, "application/json") }
+            new HttpResponseMessage(HttpStatusCode.InternalServerError)
         ]);
 
         using var client = new HttpClient(handler) { BaseAddress = new Uri("https://www.alphavantage.co/") };
@@ -143,11 +133,7 @@ public class AlphaVantageMarketDataServiceOptionsTests
             new SingleClientFactory(client),
             Options.Create(new AlphaVantageOptions { ApiKey = "demo", BaseUrl = "https://www.alphavantage.co" }));
 
-        var result = await service.GetOptionChainAsync("AAPL");
-
-        Assert.Equal(3, handler.Attempts);
-        Assert.NotNull(result);
-        Assert.Single(result!.Contracts);
+        await Assert.ThrowsAsync<HttpRequestException>(() => service.GetOptionChainAsync("AAPL"));
     }
 
     [Fact]

@@ -12,6 +12,7 @@ namespace Backend.Application.DependencyInjection
         public static IServiceCollection AddServices(this IServiceCollection service)
         {
             service.AddScoped<TechnicalIndicatorsService>();
+
             service.AddScoped<ITechnicalIndicatorsService>(sp =>
             {
                 var inner = sp.GetRequiredService<TechnicalIndicatorsService>();
@@ -19,6 +20,11 @@ namespace Backend.Application.DependencyInjection
                 var options = sp.GetRequiredService<IOptions<TechnicalIndicatorsCacheOptions>>();
                 return new CachingTechnicalIndicatorsService(inner, cache, options);
             });
+            service.AddScoped<IWheelStateService, WheelStateService>();
+
+            service.AddScoped<IWheelReconciliationService, WheelReconciliationService>();
+
+            service.AddSingleton<IBrokerPositionsProvider, NullBrokerPositionsProvider>();
 
             return service;
         }
