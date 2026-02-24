@@ -1,15 +1,10 @@
-using Microsoft.EntityFrameworkCore;
 using Backend.Infrastructure.Data.Entities;
-using Backend.Domain.Models.Wheel;
+using Microsoft.EntityFrameworkCore;
 
 namespace Backend.Infrastructure.Data
 {
-    public class AppDbContext : DbContext
+    public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options)
     {
-        public AppDbContext(DbContextOptions<AppDbContext> options) : base(options)
-        {
-        }
-
         public DbSet<WheelTickerStateEntity> WheelTickerStates => Set<WheelTickerStateEntity>();
 
         public DbSet<WheelEventEntity> WheelEvents => Set<WheelEventEntity>();

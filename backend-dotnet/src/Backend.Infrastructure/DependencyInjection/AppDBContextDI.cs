@@ -17,7 +17,8 @@ namespace Backend.Infrastructure.DependencyInjection
             services.AddDbContextFactory<AppDbContext>((sp, options) =>
             {
                 var supabaseOptions = sp.GetRequiredService<IOptions<SupabaseOptions>>().Value;
-                options.UseNpgsql(supabaseOptions.ConnectionString, npgsql =>
+
+                options.UseNpgsql(supabaseOptions.DefaultConnection, npgsql =>
                     npgsql.EnableRetryOnFailure(
                         maxRetryCount: MaxRetryCount,
                         maxRetryDelay: MaxRetryDelay,

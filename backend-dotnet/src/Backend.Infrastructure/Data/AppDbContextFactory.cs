@@ -25,9 +25,8 @@ namespace Backend.Infrastructure.Data
                 .Build();
 
             var connectionString = configuration
-                .GetSection(SupabaseOptions.SectionName)[nameof(SupabaseOptions.ConnectionString)]
-                ?? configuration.GetSection("ConnectionStrings")["DefaultConnection"]
-                ?? Environment.GetEnvironmentVariable("SUPABASE_CONNECTION_STRING");
+                .GetSection(SupabaseOptions.SectionName)[nameof(SupabaseOptions.MigrationConnection)]
+                ?? throw new Exception("No connection string found for App DB Context.");
 
             var optionsBuilder = new DbContextOptionsBuilder<AppDbContext>();
             optionsBuilder.UseNpgsql(connectionString);
