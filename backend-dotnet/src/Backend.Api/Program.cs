@@ -4,6 +4,10 @@ using Backend.Infrastructure.DependencyInjection;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.ConfigureStructuredLogging();
+
+builder.Services.AddOptions(builder.Configuration);
+
 builder.Services.AddControllers();
 
 builder.Services.AddOpenApi();
@@ -22,6 +26,8 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+app.UseStructuredHttpRequestLogging();
 
 app.UseRateLimiter();
 
