@@ -30,6 +30,8 @@ public static class ApiDI
 
         services.AddApplication(config);
 
+        services.AddApiAuth(config);
+
         return builder;
     }
 
@@ -45,6 +47,8 @@ public static class ApiDI
         application.UseStructuredHttpRequestLogging();
 
         application.UseRateLimiter();
+
+        application.UseAuthentication();
 
         application.UseAuthorization();
 
