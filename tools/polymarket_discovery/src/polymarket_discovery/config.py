@@ -24,6 +24,7 @@ class DiscoveryConfig:
     output_root: Path
     artifact_subdir: str = "runs"
     market_source: str = "polymarket-api"
+    embedding_provider: str = "stub"
     embedding_model: str = "linq-embed-mistral-stub"
     llm_model: str = "deepseek-stub"
     stages: tuple[str, ...] = DEFAULT_STAGES
@@ -38,6 +39,7 @@ class DiscoveryConfig:
             "output_root": str(self.output_root),
             "artifact_subdir": self.artifact_subdir,
             "market_source": self.market_source,
+            "embedding_provider": self.embedding_provider,
             "embedding_model": self.embedding_model,
             "llm_model": self.llm_model,
             "stages": list(self.stages),
@@ -74,6 +76,7 @@ def load_config(config_path: str | Path) -> DiscoveryConfig:
         output_root=Path(output_root_value),
         artifact_subdir=artifact_subdir,
         market_source=str(raw.get("market_source", "polymarket-api")),
+        embedding_provider=str(raw.get("embedding_provider", "stub")),
         embedding_model=str(raw.get("embedding_model", "linq-embed-mistral-stub")),
         llm_model=str(raw.get("llm_model", "deepseek-stub")),
         stages=tuple(raw_stages),

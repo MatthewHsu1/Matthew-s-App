@@ -3,9 +3,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from .config import DiscoveryConfig
 from .contracts import MarketDescriptor
 from .pipeline import PipelineComponents
-from .providers import DeepSeekLLMProviderStub
+from .providers import PolymarketMarketSource
 from .stages import (
     DefaultBasketBuilder,
     DefaultBasketValidator,
@@ -50,12 +51,21 @@ class FixtureMarketSource:
         ]
 
 
-def build_components() -> PipelineComponents:
+def _select_market_source(config: DiscoveryConfig | None = None) -> Any:
+    source_name = (config.market_source if config is not None else "fixture").strip().lower()
+    if source_name in {"fixture", "fixtures"}:
+        return FixtureMarketSource()
+    if source_name in {"polymarket", "polymarket-api", "real"}:
+        return PolymarketMarketSource()
+    raise ValueError(f"Unsupported market source: {source_name}")
+
+
+def build_components(config: DiscoveryConfig | None = None) -> PipelineComponents:
     return PipelineComponents(
-        market_source=FixtureMarketSource(),
+        market_source=_select_market_source(config),
         topic_assigner=DefaultTopicAssigner(),
         candidate_reducer=TopicEndDateCandidateReducer(),
-        dependency_inferencer=LLMDependencyInferencer(DeepSeekLLMProviderStub()),
+        dependency_inferencer=LLMDependencyInferencer(),
         basket_builder=DefaultBasketBuilder(),
         basket_validator=DefaultBasketValidator(),
     )

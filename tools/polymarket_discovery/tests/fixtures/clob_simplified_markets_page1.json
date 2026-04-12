@@ -1,0 +1,49 @@
+{
+  "limit": 100,
+  "next_cursor": null,
+  "count": 2,
+  "data": [
+    {
+      "condition_id": "cond-a",
+      "active": true,
+      "closed": false,
+      "archived": false,
+      "accepting_orders": true,
+      "tokens": [
+        {
+          "token_id": "tok-a-no",
+          "outcome": "No",
+          "price": 0.42,
+          "winner": false
+        },
+        {
+          "token_id": "tok-a-yes",
+          "outcome": "Yes",
+          "price": 0.58,
+          "winner": false
+        }
+      ]
+    },
+    {
+      "condition_id": "cond-b",
+      "active": true,
+      "closed": false,
+      "archived": false,
+      "accepting_orders": true,
+      "tokens": [
+        {
+          "token_id": "tok-b-no",
+          "outcome": "No",
+          "price": 0.55,
+          "winner": false
+        },
+        {
+          "token_id": "tok-b-yes",
+          "outcome": "Yes",
+          "price": 0.45,
+          "winner": false
+        }
+      ]
+    }
+  ]
+}

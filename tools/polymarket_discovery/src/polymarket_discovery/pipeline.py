@@ -108,10 +108,10 @@ def write_run_artifact(result: PipelineRunResult, output_path: str) -> None:
         handle.write("\n")
 
 
-def build_default_components() -> PipelineComponents:
+def build_default_components(config: DiscoveryConfig | None = None) -> PipelineComponents:
     from .components import build_components
 
-    components = build_components()
+    components = build_components(config)
     if not isinstance(components, PipelineComponents):
         raise TypeError("build_components() must return PipelineComponents.")
     return components

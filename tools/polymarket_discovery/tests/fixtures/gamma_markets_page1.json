@@ -1,0 +1,54 @@
+[
+  {
+    "id": "mkt-b",
+    "question": "Will Candidate B win?",
+    "conditionId": "cond-b",
+    "slug": "candidate-b",
+    "description": "Election market B",
+    "resolutionSource": "Official results",
+    "endDate": "2026-11-03T23:59:59Z",
+    "category": "politics",
+    "active": true,
+    "closed": false,
+    "archived": false
+  },
+  {
+    "id": "mkt-a",
+    "question": "Will Candidate A win?",
+    "conditionId": "cond-a",
+    "slug": "candidate-a",
+    "description": "Election market A",
+    "resolutionSource": "Official results",
+    "endDate": "2026-11-03",
+    "category": "politics",
+    "active": true,
+    "closed": false,
+    "archived": false
+  },
+  {
+    "id": "mkt-closed",
+    "question": "Will Candidate C win?",
+    "conditionId": "cond-c",
+    "slug": "candidate-c",
+    "description": "Closed market",
+    "resolutionSource": "Official results",
+    "endDate": "2026-11-03",
+    "category": "politics",
+    "active": true,
+    "closed": true,
+    "archived": false
+  },
+  {
+    "id": "mkt-missing",
+    "question": "",
+    "conditionId": "cond-missing",
+    "slug": "candidate-missing",
+    "description": "Malformed market",
+    "resolutionSource": "Official results",
+    "endDate": "2026-11-03",
+    "category": "politics",
+    "active": true,
+    "closed": false,
+    "archived": false
+  }
+]
