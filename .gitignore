@@ -126,15 +126,12 @@ Thumbs.db
 # Backup files
 *.bak
 *.backup
-*.old 
+*.old
 
-*.cursor
-
+# Project-specific files
 Justfile
-
 AGENTS.md
-
-WHEEL_IMPLEMENTATION_CHECKLIST.md
+docs/
 
 # Nautilus sidecar clone (managed by bootstrap script)
 tools/nautilus-trader/
