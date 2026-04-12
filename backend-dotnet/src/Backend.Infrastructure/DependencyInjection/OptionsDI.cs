@@ -1,4 +1,5 @@
 using Backend.Domain.Options.AlphaVantage;
+using Backend.Domain.Options.Auth;
 using Backend.Domain.Options.Redis;
 using Backend.Domain.Options.Supabase;
 using Microsoft.Extensions.Configuration;
@@ -15,6 +16,10 @@ namespace Backend.Infrastructure.DependencyInjection
             services.Configure<RedisOptions>(configuration.GetSection(RedisOptions.SectionName));
 
             services.Configure<SupabaseOptions>(configuration.GetSection(SupabaseOptions.SectionName));
+
+            services.Configure<AuthenticationOptions>(configuration.GetSection(AuthenticationOptions.SectionName));
+
+            services.Configure<AuthProvidersOptions>(configuration.GetSection(AuthProvidersOptions.SectionName));
 
             return services;
         }

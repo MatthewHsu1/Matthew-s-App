@@ -52,6 +52,7 @@ _NCrunch*
 
 # Environment variables
 .env
+.env.nautilus
 .env.local
 .env.development.local
 .env.test.local
@@ -125,8 +126,19 @@ Thumbs.db
 # Backup files
 *.bak
 *.backup
-*.old 
+*.old
 
-*.cursor
+# Project-specific files
+Justfile
+AGENTS.md
+docs/
 
-WHEEL_IMPLEMENTATION_CHECKLIST.md
+# Nautilus sidecar clone (managed by bootstrap script)
+tools/nautilus-trader/
+
+# Polymarket discovery local Python artifacts
+tools/polymarket_discovery/.venv/
+tools/polymarket_discovery/.pytest_cache/
+tools/polymarket_discovery/**/__pycache__/
+tools/polymarket_discovery/**/*.pyc
+tools/polymarket_discovery/**/*.egg-info/
