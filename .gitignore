@@ -52,6 +52,7 @@ _NCrunch*
 
 # Environment variables
 .env
+.env.nautilus
 .env.local
 .env.development.local
 .env.test.local
@@ -129,6 +130,11 @@ Thumbs.db
 
 *.cursor
 
+Justfile
+
 AGENTS.md
 
 WHEEL_IMPLEMENTATION_CHECKLIST.md
+
+# Nautilus sidecar clone (managed by bootstrap script)
+tools/nautilus-trader/

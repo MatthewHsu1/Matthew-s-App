@@ -1,0 +1,7 @@
+services:
+  nautilus:
+    image: ${NAUTILUS_DOCKER_IMAGE:-ghcr.io/nautechsystems/nautilus_trader:latest}
+    command:
+      - python
+      - -c
+      - "import nautilus_trader; print('nautilus_trader', nautilus_trader.__version__)"
