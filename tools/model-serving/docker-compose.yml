@@ -1,0 +1,85 @@
+services:
+  vllm:
+    image: ${VLLM_IMAGE:-vllm/vllm-openai:v0.8.5}
+    container_name: model-serving-vllm
+    env_file:
+      - .env
+    environment:
+      HF_HOME: ${HF_HOME:-/data/hf}
+      HF_HUB_CACHE: ${HF_HUB_CACHE:-/data/hf/hub}
+      TRANSFORMERS_CACHE: ${TRANSFORMERS_CACHE:-/data/hf/transformers}
+      VLLM_CACHE_DIR: ${VLLM_CACHE_DIR:-/data/vllm}
+      NVIDIA_VISIBLE_DEVICES: ${NVIDIA_VISIBLE_DEVICES:-all}
+      NVIDIA_DRIVER_CAPABILITIES: ${NVIDIA_DRIVER_CAPABILITIES:-compute,utility}
+      TOKENIZERS_PARALLELISM: "false"
+      VLLM_MODEL_ID: ${VLLM_MODEL_ID:-glm-open-weight-model-id}
+      VLLM_MAX_MODEL_LEN: ${VLLM_MAX_MODEL_LEN:-8192}
+      VLLM_GPU_MEMORY_UTILIZATION: ${VLLM_GPU_MEMORY_UTILIZATION:-0.90}
+    command:
+      - --model
+      - ${VLLM_MODEL_ID:-glm-open-weight-model-id}
+      - --host
+      - 0.0.0.0
+      - --port
+      - ${VLLM_PORT:-8000}
+      - --max-model-len
+      - ${VLLM_MAX_MODEL_LEN:-8192}
+      - --gpu-memory-utilization
+      - ${VLLM_GPU_MEMORY_UTILIZATION:-0.90}
+      - --served-model-name
+      - ${VLLM_MODEL_ID:-glm-open-weight-model-id}
+    ports:
+      - "${HOST_BIND_ADDRESS:-127.0.0.1}:${VLLM_PORT:-8000}:${VLLM_PORT:-8000}"
+    volumes:
+      - ${HF_HOME_HOST:-./.cache/huggingface}:${HF_HOME:-/data/hf}
+      - ${VLLM_CACHE_HOST:-./.cache/vllm}:${VLLM_CACHE_DIR:-/data/vllm}
+    gpus: all
+    ipc: host
+    shm_size: "16gb"
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - curl --fail --silent --show-error http://127.0.0.1:${VLLM_PORT:-8000}/health >/dev/null
+      interval: 30s
+      timeout: 10s
+      retries: 12
+      start_period: 60s
+
+  tei:
+    image: ${TEI_IMAGE:-ghcr.io/huggingface/text-embeddings-inference:1.8}
+    container_name: model-serving-tei
+    env_file:
+      - .env
+    environment:
+      HF_HOME: ${HF_HOME:-/data/hf}
+      HF_HUB_CACHE: ${HF_HUB_CACHE:-/data/hf/hub}
+      TRANSFORMERS_CACHE: ${TRANSFORMERS_CACHE:-/data/hf/transformers}
+      TEI_CACHE_DIR: ${TEI_CACHE_DIR:-/data/tei}
+      NVIDIA_VISIBLE_DEVICES: ${NVIDIA_VISIBLE_DEVICES:-all}
+      NVIDIA_DRIVER_CAPABILITIES: ${NVIDIA_DRIVER_CAPABILITIES:-compute,utility}
+      TEI_MODEL_ID: ${TEI_MODEL_ID:-linq-embed-mistral}
+    command:
+      - --model-id
+      - ${TEI_MODEL_ID:-linq-embed-mistral}
+      - --host
+      - 0.0.0.0
+      - --port
+      - ${TEI_PORT:-8080}
+    ports:
+      - "${HOST_BIND_ADDRESS:-127.0.0.1}:${TEI_PORT:-8080}:${TEI_PORT:-8080}"
+    volumes:
+      - ${HF_HOME_HOST:-./.cache/huggingface}:${HF_HOME:-/data/hf}
+      - ${TEI_CACHE_HOST:-./.cache/tei}:${TEI_CACHE_DIR:-/data/tei}
+    gpus: all
+    ipc: host
+    shm_size: "8gb"
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - curl --fail --silent --show-error http://127.0.0.1:${TEI_PORT:-8080}/health >/dev/null
+      interval: 30s
+      timeout: 10s
+      retries: 12
+      start_period: 30s
