@@ -2,6 +2,7 @@
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
+    <OutputType>Library</OutputType>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UserSecretsId>a9379190-9b8b-4ca8-b6f1-25f0f330cb20</UserSecretsId>
@@ -24,7 +25,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Backend.Application\Backend.Application.csproj" />
-    <ProjectReference Include="..\Backend.Infrastructure\Backend.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>

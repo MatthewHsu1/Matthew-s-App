@@ -16,13 +16,13 @@ from .contracts import BasketItem
 from .contracts import DependencyEdge
 from .contracts import MarketDescriptor
 from .contracts import RunMetadata
-from .interfaces import BasketBuilder
-from .interfaces import BasketValidator
-from .interfaces import CandidateReducer
-from .interfaces import DependencyInferencer
-from .interfaces import LLMProvider
-from .interfaces import MarketPair
-from .interfaces import TopicAssigner
+from .interfaces.basket_builder import BasketBuilder
+from .interfaces.basket_validator import BasketValidator
+from .interfaces.candidate_reducer import CandidateReducer
+from .interfaces.dependency_inferencer import DependencyInferencer
+from .interfaces.llm_provider import LLMProvider
+from .interfaces.market_pair import MarketPair
+from .interfaces.topic_assigner import TopicAssigner
 from .providers import build_embedding_provider
 from .providers import build_llm_provider
 from .providers import configures_llm_provider
@@ -108,43 +108,51 @@ class DefaultTopicAssigner(TopicAssigner):
         if not isinstance(params, dict):
             params = {}
 
-        topic_params: dict[str, Any] = {}
-        for key in ("topic_assigner", "topic_clustering", "embeddings"):
-            candidate = params.get(key)
-            if isinstance(candidate, dict):
-                topic_params = candidate
-                break
+        embeddings_params = params.get("embeddings") if isinstance(params.get("embeddings"), dict) else {}
+        topic_assigner_params = params.get("topic_assigner") if isinstance(params.get("topic_assigner"), dict) else {}
+        topic_clustering_params = params.get("topic_clustering") if isinstance(params.get("topic_clustering"), dict) else {}
 
         embedding_provider = getattr(config, "embedding_provider", "stub") if config is not None else "stub"
         embedding_model = getattr(config, "embedding_model", "linq-embed-mistral-stub") if config is not None else "linq-embed-mistral-stub"
         return _TopicAssignerSettings(
             embedding_provider=self._coerce_str(
-                topic_params.get("embedding_provider", params.get("embedding_provider")),
+                self._first_str(
+                    (embeddings_params, topic_assigner_params, topic_clustering_params, params),
+                    "embedding_provider",
+                    "provider",
+                    "provider_name",
+                ),
                 str(embedding_provider),
             ),
             embedding_model=self._coerce_str(
-                topic_params.get("embedding_model", params.get("embedding_model")),
+                self._first_str(
+                    (embeddings_params, topic_assigner_params, topic_clustering_params, params),
+                    "embedding_model",
+                    "model",
+                ),
                 str(embedding_model),
             ),
             embedding_batch_size=self._coerce_int(
-                topic_params.get(
+                self._first_int(
+                    (topic_assigner_params, topic_clustering_params, embeddings_params, params),
                     "embedding_batch_size",
-                    topic_params.get("batch_size", params.get("embedding_batch_size", params.get("batch_size"))),
+                    "batch_size",
                 ),
                 16,
             ),
             cluster_threshold=self._coerce_float(
-                topic_params.get(
+                self._first_float(
+                    (topic_assigner_params, topic_clustering_params, embeddings_params, params),
                     "cluster_threshold",
-                    topic_params.get(
-                        "embedding_cluster_threshold",
-                        params.get("cluster_threshold", params.get("embedding_cluster_threshold")),
-                    ),
+                    "embedding_cluster_threshold",
                 ),
                 0.82,
             ),
             min_cluster_size=self._coerce_int(
-                topic_params.get("min_cluster_size", params.get("min_cluster_size")),
+                self._first_int(
+                    (topic_assigner_params, topic_clustering_params, embeddings_params, params),
+                    "min_cluster_size",
+                ),
                 2,
             ),
         )
@@ -290,6 +298,37 @@ class DefaultTopicAssigner(TopicAssigner):
             cleaned = value.strip()
             return cleaned or default
         return default
+
+    @staticmethod
+    def _first_str(sources: Sequence[Any], *keys: str) -> Any:
+        for source in sources:
+            if not isinstance(source, dict):
+                continue
+            for key in keys:
+                value = source.get(key)
+                if isinstance(value, str) and value.strip():
+                    return value
+        return None
+
+    @staticmethod
+    def _first_int(sources: Sequence[Any], *keys: str) -> Any:
+        for source in sources:
+            if not isinstance(source, dict):
+                continue
+            for key in keys:
+                if key in source:
+                    return source.get(key)
+        return None
+
+    @staticmethod
+    def _first_float(sources: Sequence[Any], *keys: str) -> Any:
+        for source in sources:
+            if not isinstance(source, dict):
+                continue
+            for key in keys:
+                if key in source:
+                    return source.get(key)
+        return None
 
 
 class TopicEndDateCandidateReducer(CandidateReducer):

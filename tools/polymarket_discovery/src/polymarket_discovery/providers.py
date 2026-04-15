@@ -14,13 +14,14 @@ from typing import Sequence
 from urllib.error import HTTPError
 from urllib.error import URLError
 from urllib.parse import urlencode
+from urllib.parse import urlparse
 from urllib.request import Request
 import urllib.request
 
 from .contracts import MarketDescriptor
-from .interfaces import EmbeddingProvider
-from .interfaces import LLMDependencyPrediction
-from .interfaces import LLMProvider
+from .interfaces.embedding_provider import EmbeddingProvider
+from .interfaces.llm_dependency_prediction import LLMDependencyPrediction
+from .interfaces.llm_provider import LLMProvider
 
 ALLOWED_LLM_EDGE_TYPES = frozenset({"mutually_exclusive", "conditional", "related"})
 
@@ -50,6 +51,18 @@ def _coerce_str(value: Any, default: str) -> str:
     return default
 
 
+def _is_local_endpoint(url: str) -> bool:
+    if not url:
+        return False
+
+    parsed = urlparse(url)
+    hostname = parsed.hostname
+    if not hostname:
+        return False
+
+    return hostname.lower() in {"localhost", "127.0.0.1", "::1"}
+
+
 @dataclass(slots=True)
 class StubEmbeddingProvider(EmbeddingProvider):
     """Deterministic embedding stub for local tests and interface plumbing."""
@@ -67,10 +80,213 @@ class StubEmbeddingProvider(EmbeddingProvider):
 
 
 @dataclass(slots=True)
+class _EmbeddingRetrySettings:
+    max_attempts: int = 3
+    backoff_seconds: float = 0.5
+    backoff_factor: float = 2.0
+
+
+@dataclass(slots=True)
 class _EmbeddingProviderSettings:
     provider_name: str = "stub"
     model_name: str = "stub-embed"
     dimensions: int = 8
+    base_url: str = ""
+    timeout_seconds: float = 10.0
+    batch_size: int = 16
+    api_key: str = ""
+    retry: _EmbeddingRetrySettings = field(default_factory=_EmbeddingRetrySettings)
+
+
+@dataclass(slots=True)
+class HTTPEmbeddingProvider(EmbeddingProvider):
+    settings: _EmbeddingProviderSettings
+
+    def __post_init__(self) -> None:
+        if not self.settings.base_url:
+            raise ValueError("base_url is required for non-stub embedding providers")
+        if self.settings.timeout_seconds <= 0:
+            raise ValueError("timeout_seconds must be greater than zero")
+        if self.settings.batch_size <= 0:
+            raise ValueError("batch_size must be greater than zero")
+        if self.settings.retry.max_attempts <= 0:
+            raise ValueError("retry.max_attempts must be greater than zero")
+        if self.settings.retry.backoff_seconds < 0:
+            raise ValueError("retry.backoff_seconds must be zero or greater")
+        if self.settings.retry.backoff_factor <= 0:
+            raise ValueError("retry.backoff_factor must be greater than zero")
+
+    def embed_texts(self, texts: Sequence[str]) -> list[list[float]]:
+        if not texts:
+            return []
+
+        vectors: list[list[float]] = []
+        for start in range(0, len(texts), self.settings.batch_size):
+            batch = list(texts[start : start + self.settings.batch_size])
+            payload = self._request_json(
+                {
+                    "model": self.settings.model_name,
+                    "input": batch,
+                },
+            )
+            vectors.extend(self._extract_embeddings(payload, len(batch)))
+        return vectors
+
+    def _request_json(self, payload: dict[str, Any]) -> Any:
+        encoded_payload = json.dumps(payload).encode("utf-8")
+        last_error: Exception | None = None
+        for attempt in range(self.settings.retry.max_attempts):
+            headers = {
+                "User-Agent": "polymarket-discovery/0.1",
+                "Content-Type": "application/json",
+            }
+            if self.settings.api_key:
+                headers["Authorization"] = f"Bearer {self.settings.api_key}"
+
+            request = Request(
+                self.settings.base_url,
+                data=encoded_payload,
+                headers=headers,
+                method="POST",
+            )
+            try:
+                with urllib.request.urlopen(request, timeout=self.settings.timeout_seconds) as response:
+                    raw = response.read().decode("utf-8")
+                return json.loads(raw)
+            except HTTPError as exc:
+                if exc.code not in {429, 500, 502, 503, 504} or attempt >= self.settings.retry.max_attempts - 1:
+                    raise
+                last_error = exc
+            except (URLError, TimeoutError, json.JSONDecodeError) as exc:
+                if attempt >= self.settings.retry.max_attempts - 1:
+                    raise
+                last_error = exc
+
+            sleep_seconds = self.settings.retry.backoff_seconds * (self.settings.retry.backoff_factor**attempt)
+            if sleep_seconds > 0:
+                time.sleep(sleep_seconds)
+
+        if last_error is not None:
+            raise last_error
+        raise RuntimeError("embedding request retry loop exited unexpectedly")
+
+    @staticmethod
+    def _extract_embeddings(payload: Any, expected_count: int) -> list[list[float]]:
+        if not isinstance(payload, dict):
+            raise ValueError("embedding response payload must be a JSON object")
+
+        data = payload.get("data")
+        if not isinstance(data, list):
+            raise ValueError("embedding response payload must include data")
+        if len(data) != expected_count:
+            raise ValueError("embedding response payload returned a mismatched number of vectors")
+
+        vectors: list[list[float]] = []
+        for item in data:
+            if isinstance(item, dict):
+                embedding = item.get("embedding")
+            else:
+                embedding = item
+            if not isinstance(embedding, list):
+                raise ValueError("embedding response payload must include embedding vectors")
+            vectors.append([float(value) for value in embedding])
+        return vectors
+
+
+def _resolve_embedding_settings(config: Any | None = None) -> _EmbeddingProviderSettings:
+    params = getattr(config, "params", {}) if config is not None else {}
+    if not isinstance(params, dict):
+        params = {}
+
+    embedding_params: dict[str, Any] = {}
+    for key in ("embeddings", "topic_assigner", "topic_clustering"):
+        candidate = params.get(key)
+        if isinstance(candidate, dict):
+            embedding_params = candidate
+            break
+
+    explicit_provider_name = _coerce_str(
+        embedding_params.get(
+            "embedding_provider",
+            embedding_params.get(
+                "provider",
+                embedding_params.get(
+                    "provider_name",
+                    params.get("embedding_provider", getattr(config, "embedding_provider", "") if config is not None else ""),
+                ),
+            ),
+        ),
+        "",
+    )
+    model_name = embedding_params.get(
+        "embedding_model",
+        embedding_params.get("model", params.get("embedding_model", getattr(config, "embedding_model", "stub-embed") if config is not None else "stub-embed")),
+    )
+    base_url = _coerce_str(
+        embedding_params.get("base_url", params.get("base_url", "")),
+        "",
+    )
+    batch_size = _coerce_int(
+        embedding_params.get(
+            "batch_size",
+            embedding_params.get(
+                "embedding_batch_size",
+                params.get("batch_size", params.get("embedding_batch_size")),
+            ),
+        ),
+        16,
+    )
+    retry_params = embedding_params.get("retry")
+    if not isinstance(retry_params, dict):
+        retry_params = {}
+    settings = _EmbeddingProviderSettings(
+        provider_name=(
+            explicit_provider_name.lower()
+            if explicit_provider_name
+            else ("tei" if base_url else "stub")
+        ),
+        model_name=_coerce_str(model_name, "stub-embed"),
+        dimensions=_coerce_int(
+            embedding_params.get("embedding_dimensions", params.get("embedding_dimensions")),
+            8,
+        ),
+        base_url=base_url,
+        timeout_seconds=_coerce_float(
+            embedding_params.get("timeout_seconds", params.get("timeout_seconds")),
+            10.0,
+        ),
+        batch_size=batch_size,
+        api_key=_coerce_str(
+            embedding_params.get("api_key", params.get("api_key")),
+            "",
+        ),
+        retry=_EmbeddingRetrySettings(
+            max_attempts=_coerce_int(
+                retry_params.get("max_attempts", embedding_params.get("retries", params.get("retries"))),
+                3,
+            ),
+            backoff_seconds=_coerce_float(
+                retry_params.get("backoff_seconds", embedding_params.get("backoff_seconds", params.get("backoff_seconds"))),
+                0.5,
+            ),
+            backoff_factor=_coerce_float(
+                retry_params.get("backoff_factor", embedding_params.get("backoff_factor", params.get("backoff_factor"))),
+                2.0,
+            ),
+        ),
+    )
+
+    if settings.timeout_seconds <= 0:
+        raise ValueError("timeout_seconds must be greater than zero")
+    if settings.batch_size <= 0:
+        raise ValueError("batch_size must be greater than zero")
+    if settings.retry.max_attempts <= 0:
+        raise ValueError("retry.max_attempts must be greater than zero")
+    if settings.retry.backoff_seconds < 0:
+        raise ValueError("retry.backoff_seconds must be zero or greater")
+    if settings.retry.backoff_factor <= 0:
+        raise ValueError("retry.backoff_factor must be greater than zero")
+    return settings
 
 
 def build_embedding_provider(config: Any | None = None) -> EmbeddingProvider:
@@ -79,35 +295,11 @@ def build_embedding_provider(config: Any | None = None) -> EmbeddingProvider:
     if not isinstance(params, dict):
         params = {}
 
-    provider_name = getattr(config, "embedding_provider", "stub") if config is not None else "stub"
-    model_name = getattr(config, "embedding_model", "stub-embed") if config is not None else "stub-embed"
-    provider_params: dict[str, Any] = {}
-    for key in ("topic_assigner", "topic_clustering", "embeddings"):
-        candidate = params.get(key)
-        if isinstance(candidate, dict):
-            provider_params = candidate
-            break
-
-    if isinstance(provider_params.get("embedding_provider"), str):
-        provider_name = provider_params["embedding_provider"]
-    elif isinstance(params.get("embedding_provider"), str):
-        provider_name = params["embedding_provider"]
-
-    if isinstance(provider_params.get("embedding_model"), str):
-        model_name = provider_params["embedding_model"]
-    elif isinstance(params.get("embedding_model"), str):
-        model_name = params["embedding_model"]
-
-    settings = _EmbeddingProviderSettings(
-        provider_name=str(provider_name).strip().lower() or "stub",
-        model_name=str(model_name).strip() or "stub-embed",
-        dimensions=_coerce_int(
-            provider_params.get("embedding_dimensions", params.get("embedding_dimensions")),
-            8,
-        ),
-    )
+    settings = _resolve_embedding_settings(config)
     if settings.provider_name in {"stub", "deterministic", "hash", "default"}:
         return StubEmbeddingProvider(model_name=settings.model_name, dimensions=settings.dimensions)
+    if settings.provider_name in {"tei", "openai-compatible", "openai_compatible", "openai", "http"}:
+        return HTTPEmbeddingProvider(settings=settings)
     raise ValueError(f"Unsupported embedding provider: {settings.provider_name}")
 
 
@@ -163,12 +355,18 @@ def _resolve_llm_settings(config: Any | None = None) -> _LLMProviderSettings:
         "llm_model",
         inferencer_params.get("model", params.get("llm_model", getattr(config, "llm_model", "deepseek-stub") if config is not None else "deepseek-stub")),
     )
+    base_url = _coerce_str(
+        inferencer_params.get("base_url"),
+        "https://api.deepseek.com/chat/completions" if explicit_provider_name.lower() == "deepseek" else "",
+    )
     has_real_provider_settings = any(
         _coerce_str(inferencer_params.get(key), "")
         for key in ("api_key", "api_key_env", "base_url")
     )
     if explicit_provider_name:
         normalized_provider_name = explicit_provider_name.lower()
+    elif has_real_provider_settings and base_url and _is_local_endpoint(base_url):
+        normalized_provider_name = "vllm_openai"
     elif has_real_provider_settings:
         normalized_provider_name = "deepseek"
     else:
@@ -183,10 +381,8 @@ def _resolve_llm_settings(config: Any | None = None) -> _LLMProviderSettings:
     if not api_key and api_key_env:
         api_key = _coerce_str(os.getenv(api_key_env), "")
 
-    base_url = _coerce_str(
-        inferencer_params.get("base_url"),
-        "https://api.deepseek.com/chat/completions" if normalized_provider_name == "deepseek" else "",
-    )
+    if not base_url and normalized_provider_name == "deepseek":
+        base_url = "https://api.deepseek.com/chat/completions"
     settings = _LLMProviderSettings(
         provider_name=normalized_provider_name,
         model_name=normalized_model_name,
@@ -296,7 +492,7 @@ def build_llm_provider(config: Any | None = None) -> LLMProvider:
     settings = _resolve_llm_settings(config)
     if settings.provider_name in {"stub", "deterministic", "default"}:
         return DeepSeekLLMProviderStub(model_name=settings.model_name)
-    if settings.provider_name in {"deepseek", "openai-compatible", "openai_compatible", "http"}:
+    if settings.provider_name in {"deepseek", "openai-compatible", "openai_compatible", "vllm_openai", "vllm-openai", "vllm", "http"}:
         return OpenAICompatibleLLMProvider(settings=settings)
     raise ValueError(f"Unsupported llm provider: {settings.provider_name}")
 
@@ -718,8 +914,8 @@ class OpenAICompatibleLLMProvider(LLMProvider):
     def __post_init__(self) -> None:
         if not self.settings.base_url:
             raise ValueError("base_url is required for non-stub llm providers")
-        if not self.settings.api_key:
-            raise ValueError("api_key is required for non-stub llm providers")
+        if not self.settings.api_key and not _is_local_endpoint(self.settings.base_url):
+            raise ValueError("api_key is required for non-local llm providers")
 
     def infer_dependency(
         self,
@@ -762,7 +958,7 @@ class OpenAICompatibleLLMProvider(LLMProvider):
                 headers={
                     "User-Agent": "polymarket-discovery/0.1",
                     "Content-Type": "application/json",
-                    "Authorization": f"Bearer {self.settings.api_key}",
+                    **({"Authorization": f"Bearer {self.settings.api_key}"} if self.settings.api_key else {}),
                 },
                 method="POST",
             )

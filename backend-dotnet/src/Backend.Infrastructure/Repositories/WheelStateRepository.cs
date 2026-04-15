@@ -1,3 +1,4 @@
+using Backend.Application.Exceptions;
 using Backend.Application.Interfaces;
 using Backend.Domain.Models.Wheel;
 using Backend.Infrastructure.Data;
@@ -58,7 +59,7 @@ namespace Backend.Infrastructure.Repositories
             }
 
             if (state.Version != entity.Version)
-                throw new DbUpdateConcurrencyException($"Version mismatch for {state.Ticker}. Expected {entity.Version}, got {state.Version}.");
+                throw new WheelStateConcurrencyException($"Version mismatch for {state.Ticker}. Expected {entity.Version}, got {state.Version}.");
 
             ApplyState(entity, state);
             entity.UpdatedAtUtc = DateTimeOffset.UtcNow;

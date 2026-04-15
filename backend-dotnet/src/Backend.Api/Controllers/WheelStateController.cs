@@ -1,8 +1,8 @@
 using Backend.Api.Contracts.Wheel;
+using Backend.Application.Exceptions;
 using Backend.Application.Interfaces;
 using Backend.Domain.Models.Wheel;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace Backend.Api.Controllers;
 
@@ -71,7 +71,7 @@ public sealed class WheelStateController(
         {
             return ValidationProblem(ex.Message);
         }
-        catch (DbUpdateConcurrencyException ex)
+        catch (WheelStateConcurrencyException ex)
         {
             return Conflict(new { message = ex.Message });
         }

@@ -29,11 +29,11 @@ From the repo root, run:
 The wrapper checks for NVIDIA runtime support and then runs:
 
 ```bash
-docker compose -f docker/docker-compose.yml up -d
+docker compose -f tools/model-serving/docker-compose.yml up -d
 ```
 
 ## Troubleshooting
 
 - If the wrapper exits with `Docker does not report an NVIDIA runtime`, install or repair the NVIDIA Container Toolkit, restart Docker, and re-run the host and Docker checks above.
 - If `docker info` fails, confirm the Docker daemon is running before retrying.
-- To inspect the stack after startup, use the same compose file with `docker compose -f docker/docker-compose.yml ps` and `docker compose -f docker/docker-compose.yml logs -f`.
+- To inspect the stack after startup, use the same compose file with `docker compose -f tools/model-serving/docker-compose.yml ps` and `docker compose -f tools/model-serving/docker-compose.yml logs -f`.
