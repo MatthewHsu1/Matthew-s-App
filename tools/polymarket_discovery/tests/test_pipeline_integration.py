@@ -16,7 +16,7 @@ from polymarket_discovery.config import DiscoveryConfig
 from polymarket_discovery.contracts import BasketItem
 from polymarket_discovery.contracts import DependencyEdge
 from polymarket_discovery.contracts import MarketDescriptor
-from polymarket_discovery.logging_utils import JsonlStageLogger
+from polymarket_discovery.utils.logging_utils import JsonlStageLogger
 from polymarket_discovery.pipeline import PipelineComponents
 from polymarket_discovery.pipeline import run_pipeline
 from polymarket_discovery.serialization import validate_output_document

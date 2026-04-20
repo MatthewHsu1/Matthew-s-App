@@ -11,7 +11,7 @@ from .interfaces.candidate_reducer import CandidateReducer
 from .interfaces.dependency_inferencer import DependencyInferencer
 from .interfaces.market_source import MarketSource
 from .interfaces.topic_assigner import TopicAssigner
-from .logging_utils import JsonlStageLogger
+from .utils.logging_utils import JsonlStageLogger
 from .serialization import to_output_json, validate_output_document
 
 

@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Sequence
 
 from .config import ensure_artifact_dir, generate_run_id, load_config
-from .logging_utils import JsonlStageLogger
+from .utils.logging_utils import JsonlStageLogger
 from .pipeline import PipelineComponents, build_default_components, run_pipeline, write_run_artifact
 
 

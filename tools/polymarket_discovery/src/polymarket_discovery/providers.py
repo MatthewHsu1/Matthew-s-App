@@ -18,6 +18,8 @@ from urllib.parse import urlparse
 from urllib.request import Request
 import urllib.request
 
+from .interfaces.market_source import MarketSource
+
 from .contracts import MarketDescriptor
 from .interfaces.embedding_provider import EmbeddingProvider
 from .interfaces.llm_dependency_prediction import LLMDependencyPrediction
@@ -520,7 +522,7 @@ class _NormalizedCLOBMarket:
 
 
 @dataclass(slots=True)
-class PolymarketMarketSource:
+class PolymarketMarketSource(MarketSource):
     """Fetch and normalize active markets from Gamma plus CLOB metadata."""
 
     def fetch_active_markets(self, config: Any | None = None) -> list[MarketDescriptor]:

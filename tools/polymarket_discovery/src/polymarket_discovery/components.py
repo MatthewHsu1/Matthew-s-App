@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from .interfaces.market_source import MarketSource
+
 from .config import DiscoveryConfig
 from .contracts import MarketDescriptor
 from .pipeline import PipelineComponents
@@ -17,7 +19,7 @@ from .stages import (
 
 
 @dataclass(slots=True)
-class FixtureMarketSource:
+class FixtureMarketSource(MarketSource):
     """Fixture-backed market source used by the Phase 1 skeleton."""
 
     def fetch_active_markets(self, config: Any | None = None) -> list[MarketDescriptor]:
@@ -51,7 +53,7 @@ class FixtureMarketSource:
         ]
 
 
-def _select_market_source(config: DiscoveryConfig | None = None) -> Any:
+def _select_market_source(config: DiscoveryConfig | None = None) -> MarketSource:
     source_name = (config.market_source if config is not None else "fixture").strip().lower()
     if source_name in {"fixture", "fixtures"}:
         return FixtureMarketSource()
