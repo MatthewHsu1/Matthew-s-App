@@ -10,7 +10,7 @@ from collections import defaultdict
 
 from ..contracts import MarketDescriptor
 from ..interfaces.topic_assigner import TopicAssigner
-from ..providers import build_embedding_provider
+from ..providers.factories import build_embedding_provider
 
 
 def canonicalize_end_date(value: str) -> str:
@@ -51,8 +51,10 @@ class DefaultTopicAssigner(TopicAssigner):
             return []
 
         settings = self._resolve_settings(config)
+
         if settings.embedding_batch_size <= 0:
             raise ValueError("embedding_batch_size must be greater than zero")
+        
         provider = self._embedding_provider or build_embedding_provider(config)
         ordered_markets = sorted(
             enumerate(markets),
@@ -75,11 +77,13 @@ class DefaultTopicAssigner(TopicAssigner):
             embeddings,
             settings.cluster_threshold,
         )
+
         topics_by_market_id = self._build_cluster_topics(
             ordered_markets,
             clusters,
             settings.min_cluster_size,
         )
+
         return [
             self._copy_market(
                 market,
@@ -98,11 +102,13 @@ class DefaultTopicAssigner(TopicAssigner):
             if isinstance(params.get("embeddings"), dict)
             else {}
         )
+
         topic_assigner_params = (
             params.get("topic_assigner")
             if isinstance(params.get("topic_assigner"), dict)
             else {}
         )
+
         topic_clustering_params = (
             params.get("topic_clustering")
             if isinstance(params.get("topic_clustering"), dict)
@@ -114,11 +120,13 @@ class DefaultTopicAssigner(TopicAssigner):
             if config is not None
             else "stub"
         )
+
         embedding_model = (
             getattr(config, "embedding_model", "linq-embed-mistral-stub")
             if config is not None
             else "linq-embed-mistral-stub"
         )
+        
         return _TopicAssignerSettings(
             embedding_provider=self._coerce_str(
                 self._first_str(

@@ -15,7 +15,7 @@ if str(SRC) not in sys.path:
 
 from polymarket_discovery.components import FixtureMarketSource
 from polymarket_discovery.config import DiscoveryConfig
-from polymarket_discovery.providers import PolymarketMarketSource
+from polymarket_discovery.sources.polymarket import PolymarketMarketSource
 
 
 @dataclass

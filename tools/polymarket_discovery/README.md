@@ -1,6 +1,5 @@
-# Polymarket Discovery (Phase 1 Skeleton)
-
-Offline pipeline skeleton for discovering candidate arbitrage baskets before live Nautilus execution.
+# Polymarket Discovery
+Offline pipeline for discovering candidate arbitrage baskets.
 
 ## Run
 
@@ -14,12 +13,6 @@ Artifacts are written under `output_root/artifact_subdir/run_<hash>/`:
 - `stages.jsonl` (structured stage logs)
 
 ## Local Open-Model Setup
-
-`polymarket_discovery` now supports local-only HTTP model endpoints for both topic assignment embeddings and dependency inference.
-
-Wiring to the local model-serving stack:
-
-See [tools/model-serving/README.md](/mnt/HDD/Projects/Financial%20App/tools/model-serving/README.md) for the companion Docker setup.
 
 ```json
 {
@@ -91,13 +84,6 @@ Example local-only config:
 }
 ```
 
-If your local vLLM deployment cannot host that GLM model, use `DeepSeek-R1-Distill-Qwen-7B` as the fallback recommendation.
-
-`polymarket_discovery` remains client-only: it consumes model endpoints but does not include serving logic.
-
-When the endpoints above are local, inference and embedding requests stay on your machine and do not call external inference APIs.
-
-Public Polymarket market reads can still hit Polymarket public endpoints unless you use `market_source=fixture` or another local source. Those reads do not require market data API keys.
 
 ## Test Setup
 

@@ -14,9 +14,9 @@ if str(SRC) not in sys.path:
 
 from polymarket_discovery.config import DiscoveryConfig
 from polymarket_discovery.contracts import MarketDescriptor
-from polymarket_discovery.providers import HTTPEmbeddingProvider
-from polymarket_discovery.providers import StubEmbeddingProvider
-from polymarket_discovery.providers import build_embedding_provider
+from polymarket_discovery.providers.embeddings import HTTPEmbeddingProvider
+from polymarket_discovery.providers.embeddings import StubEmbeddingProvider
+from polymarket_discovery.providers.factories import build_embedding_provider
 from polymarket_discovery.stages import DefaultTopicAssigner
 
 

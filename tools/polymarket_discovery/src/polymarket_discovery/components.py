@@ -8,7 +8,7 @@ from .interfaces.market_source import MarketSource
 from .config import DiscoveryConfig
 from .contracts import MarketDescriptor
 from .pipeline import PipelineComponents
-from .providers import PolymarketMarketSource
+from .sources.polymarket import PolymarketMarketSource
 from .stages import (
     DefaultBasketBuilder,
     DefaultBasketValidator,
