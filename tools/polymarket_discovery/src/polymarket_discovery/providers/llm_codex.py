@@ -7,7 +7,7 @@ from ..contracts import MarketDescriptor
 from ..interfaces.codex_invoker import CodexInvoker
 from ..interfaces.llm_dependency_prediction import LLMDependencyPrediction
 from ..interfaces.llm_provider import LLMProvider
-from .llm_openai import OpenAICompatibleLLMProvider, parse_llm_dependency_prediction
+from .llm_codec import build_dependency_prompt, parse_llm_dependency_prediction
 from .settings import LLMProviderSettings
 
 
@@ -73,7 +73,7 @@ class CodexCliLLMProvider(LLMProvider):
         left_market: MarketDescriptor,
         right_market: MarketDescriptor,
     ) -> LLMDependencyPrediction:
-        user_prompt = OpenAICompatibleLLMProvider._build_user_prompt(left_market, right_market)
+        user_prompt = build_dependency_prompt(left_market, right_market)
         full_prompt = f"{_SYSTEM_PREAMBLE}\n\n{user_prompt}"
         raw = self.invoker.run(full_prompt, timeout_seconds=self.settings.timeout_seconds)
         json_text = _extract_json_object(raw)

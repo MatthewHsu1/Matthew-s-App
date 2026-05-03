@@ -16,7 +16,7 @@ from polymarket_discovery.config import DiscoveryConfig
 from polymarket_discovery.contracts import MarketDescriptor
 from polymarket_discovery.interfaces.llm_dependency_prediction import LLMDependencyPrediction
 from polymarket_discovery.providers.factories import build_llm_provider
-from polymarket_discovery.providers.llm_openai import parse_llm_dependency_prediction
+from polymarket_discovery.providers.llm_codec import parse_llm_dependency_prediction
 from polymarket_discovery.providers.llm_stub import DeepSeekLLMProviderStub
 from polymarket_discovery.stages import LLMDependencyInferencer
 
