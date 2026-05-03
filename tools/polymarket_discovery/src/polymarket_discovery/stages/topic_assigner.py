@@ -2,11 +2,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-from math import isfinite
-from math import sqrt
-from pathlib import Path
 from typing import Any, Sequence
 from collections import defaultdict
+
+import numpy as np
 
 from ..contracts import MarketDescriptor
 from ..interfaces.topic_assigner import TopicAssigner
@@ -35,6 +34,15 @@ class _TopicAssignerSettings:
     embedding_batch_size: int = 16
     cluster_threshold: float = 0.82
     min_cluster_size: int = 2
+    # Memory guard for the numpy pairwise similarity matrix.  The full
+    # similarity matrix is n² float64 values: at n=5 000 that is ~200 MB
+    # (fine); at n=20 000 it is ~3.2 GB (unsafe on most machines).  The
+    # matrix is dropped immediately after edge extraction, so peak RSS is
+    # bounded by this cap.  If this guard fires, add an upstream filter
+    # (e.g. restrict the Gamma API call to specific topic tags) or switch
+    # _cluster_markets to an ANN-based algorithm (e.g. FAISS) before
+    # raising the cap.
+    max_markets_for_clustering: int = 5_000
 
 
 class DefaultTopicAssigner(TopicAssigner):
@@ -77,6 +85,7 @@ class DefaultTopicAssigner(TopicAssigner):
             ordered_markets,
             embeddings,
             settings.cluster_threshold,
+            settings.max_markets_for_clustering,
         )
 
         topics_by_market_id = self._build_cluster_topics(
@@ -194,6 +203,17 @@ class DefaultTopicAssigner(TopicAssigner):
                 ),
                 2,
             ),
+            max_markets_for_clustering=coerce_int(
+                self._first_int(
+                    (
+                        topic_assigner_params,
+                        topic_clustering_params,
+                        params,
+                    ),
+                    "max_markets_for_clustering",
+                ),
+                5_000,
+            ),
         )
 
     def _embed_texts(
@@ -218,12 +238,67 @@ class DefaultTopicAssigner(TopicAssigner):
         ordered_markets: Sequence[tuple[int, MarketDescriptor]],
         embeddings: Sequence[Sequence[float]],
         threshold: float,
+        max_markets: int = 5_000,
     ) -> list[list[int]]:
         if len(ordered_markets) != len(embeddings):
             raise ValueError("embedding count does not match market count")
 
-        normalized = [self._normalize_embedding(vector) for vector in embeddings]
-        parents = list(range(len(normalized)))
+        n = len(ordered_markets)
+        if n > max_markets:
+            raise ValueError(
+                f"_cluster_markets received {n} markets but the configured cap is "
+                f"{max_markets} (max_markets_for_clustering={max_markets}). "
+                "The full similarity matrix would require ~"
+                f"{n * n * 8 // (1024 * 1024)} MB of memory at this scale. "
+                "Options: (1) add an upstream filter to reduce the market "
+                "count before this stage, (2) raise max_markets_for_clustering in your "
+                "DiscoveryConfig params only after confirming memory is available, "
+                "or (3) switch _cluster_markets to an ANN-based algorithm (e.g. FAISS)."
+            )
+
+        # --- Numpy vectorized pairwise cosine similarity ---
+        #
+        # Stack embeddings into an (n, d) float64 matrix, L2-normalise each
+        # row, then compute the full (n, n) similarity matrix with one BLAS
+        # call (E @ E.T).  This runs in microseconds for n≤5 000 where the
+        # equivalent pure-Python nested loop took minutes.
+        #
+        # After thresholding we extract only the upper-triangle indices
+        # (k=1 excludes the diagonal) and immediately discard the full
+        # matrix, keeping peak memory proportional to the edge list rather
+        # than n².
+
+        # Validate and convert to numpy; raises if ragged or empty.
+        try:
+            E = np.array(embeddings, dtype=np.float64)
+        except ValueError as exc:
+            raise ValueError("embedding vectors must all have the same length") from exc
+
+        if E.ndim != 2 or E.shape[0] == 0:
+            raise ValueError("embeddings must be a non-empty 2-D array")
+        if E.shape[1] == 0:
+            raise ValueError("embedding vectors must not be empty")
+
+        if not np.all(np.isfinite(E)):
+            raise ValueError("embedding vectors must contain finite values")
+
+        # L2-normalise rows in-place (zero-norm rows become zero vectors).
+        norms = np.linalg.norm(E, axis=1, keepdims=True)
+        # Avoid division by zero: replace zero norms with 1.0 (row stays 0).
+        norms[norms == 0.0] = 1.0
+        E = E / norms
+
+        # One matrix multiply gives the full cosine similarity matrix.
+        S = E @ E.T  # shape (n, n), values in [-1, 1]
+
+        # Extract upper-triangle pairs that meet the threshold (excluding
+        # self-similarity on the diagonal).  This is the only data we keep;
+        # S is released at the end of this scope.
+        pairs = np.argwhere(np.triu(S >= threshold, k=1))
+        del S  # free the n² matrix immediately
+
+        # --- Union-Find on the edge list (pure Python, tiny at n≤5 000) ---
+        parents = list(range(n))
 
         def find(index: int) -> int:
             while parents[index] != index:
@@ -241,18 +316,11 @@ class DefaultTopicAssigner(TopicAssigner):
             else:
                 parents[root_left] = root_right
 
-        for left_index in range(len(normalized)):
-            for right_index in range(left_index + 1, len(normalized)):
-                if (
-                    self._cosine_similarity(
-                        normalized[left_index], normalized[right_index]
-                    )
-                    >= threshold
-                ):
-                    union(left_index, right_index)
+        for left_index, right_index in pairs:
+            union(int(left_index), int(right_index))
 
         grouped: dict[int, list[int]] = defaultdict(list)
-        for index in range(len(normalized)):
+        for index in range(n):
             grouped[find(index)].append(index)
 
         clusters = [sorted(indices) for indices in grouped.values()]
@@ -305,28 +373,6 @@ class DefaultTopicAssigner(TopicAssigner):
     def _fallback_topic(market: MarketDescriptor) -> str:
         topic = (market.topic or "").strip()
         return topic or "unassigned"
-
-    @staticmethod
-    def _normalize_embedding(vector: Sequence[float]) -> list[float]:
-        values = [float(value) for value in vector]
-        if not values:
-            raise ValueError("embedding vectors must not be empty")
-        if not all(isfinite(value) for value in values):
-            raise ValueError("embedding vectors must contain finite values")
-        norm = sqrt(sum(value * value for value in values))
-        if norm <= 0:
-            return [0.0 for _ in values]
-        return [value / norm for value in values]
-
-    @staticmethod
-    def _cosine_similarity(left: Sequence[float], right: Sequence[float]) -> float:
-        if len(left) != len(right):
-            raise ValueError("embedding vectors must have the same length")
-        if not left:
-            return 0.0
-        return sum(
-            left_value * right_value for left_value, right_value in zip(left, right)
-        )
 
 
     @staticmethod

@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import json
 import sys
+import time
 from pathlib import Path
 from urllib.error import URLError
 
+import numpy as np
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -489,3 +491,112 @@ def test_build_embedding_text_works_when_description_is_empty() -> None:
     text = DefaultTopicAssigner._build_embedding_text(market)
 
     assert text == "Will X happen?"
+
+
+# ---------------------------------------------------------------------------
+# max_markets_for_clustering guard tests
+# ---------------------------------------------------------------------------
+
+
+def test_cluster_markets_raises_when_market_count_exceeds_configured_cap(tmp_path: Path) -> None:
+    """Guard fires with a clear ValueError when market count exceeds the cap.
+
+    Creates cap+1 markets with orthogonal unit-vector embeddings so the
+    clustering logic itself would never merge them — the error must come from
+    the size check, not from a similarity calculation.
+    """
+    cap = 3
+    dims = cap + 1  # orthogonal unit vectors in R^{cap+1}
+
+    markets = [_market(f"m{i}", question=f"Question {i}") for i in range(cap + 1)]
+    # Orthogonal unit vectors — no pair exceeds any reasonable threshold
+    vectors_by_text = {
+        f"Question {i}": [1.0 if j == i else 0.0 for j in range(dims)]
+        for i in range(cap + 1)
+    }
+    provider = _MappingEmbeddingProvider(vectors_by_text)
+    config = _config(
+        tmp_path,
+        embedding_batch_size=cap + 1,
+        cluster_threshold=0.9,
+        min_cluster_size=2,
+        max_markets_for_clustering=cap,
+    )
+
+    with pytest.raises(ValueError, match="max_markets_for_clustering"):
+        DefaultTopicAssigner(embedding_provider=provider).assign_topics(markets, config)
+
+
+def test_cluster_markets_succeeds_for_realistic_input_under_cap(tmp_path: Path) -> None:
+    """Clustering output is identical to the pre-guard baseline for inputs within the cap.
+
+    Uses the same 5-market fixture as the existing batching test so the
+    expected topic assignments are already well-established.
+    """
+    markets = [
+        _market("m1", question="Will Candidate A win?", description="Election market"),
+        _market("m2", question="Will Candidate A win?", description="Election market"),
+        _market("m3", question="Will the Fed cut rates?", description="Macro market"),
+        _market("m4", question="Will the Fed cut rates?", description="Macro market"),
+        _market("m5", question="Will the exhibit sell out?", description="Event market", topic="event"),
+    ]
+    vectors_by_text = {
+        "Will Candidate A win?\nElection market": [1.0, 0.0, 0.0],
+        "Will the Fed cut rates?\nMacro market": [0.0, 1.0, 0.0],
+        "Will the exhibit sell out?\nEvent market": [0.0, 0.0, 1.0],
+    }
+    provider = _MappingEmbeddingProvider(vectors_by_text)
+    # Cap set well above the 5-market input — guard must not fire
+    config = _config(
+        tmp_path,
+        embedding_batch_size=2,
+        cluster_threshold=0.9,
+        min_cluster_size=2,
+        max_markets_for_clustering=5_000,
+    )
+
+    assigned = DefaultTopicAssigner(embedding_provider=provider).assign_topics(markets, config)
+    topics = _assigned_topics(assigned)
+
+    assert topics["m1"] == topics["m2"]
+    assert topics["m3"] == topics["m4"]
+    assert topics["m1"] != topics["m3"]
+    assert topics["m5"] == "event"
+    assert topics["m1"].startswith("topic-")
+    assert topics["m3"].startswith("topic-")
+
+
+# ---------------------------------------------------------------------------
+# Performance smoke test: 500 markets × 64 dims must finish in < 1 second.
+# This is a regression detector — revert the vectorisation and this fails.
+# ---------------------------------------------------------------------------
+
+
+def test_clustering_500_markets_64_dims_completes_under_one_second(tmp_path: Path) -> None:
+    """Soft regression guard: numpy vectorisation must keep 500×64 clustering
+    under 1 second.  If the vectorisation is reverted to pure Python, the
+    nested loop executes ~125 000 iterations and this will fail.
+    """
+    rng = np.random.default_rng(42)
+    n, d = 500, 64
+    raw_vectors = rng.standard_normal((n, d)).tolist()
+
+    markets = [_market(f"perf{i}", question=f"Perf question {i}") for i in range(n)]
+    vectors_by_text = {f"Perf question {i}": raw_vectors[i] for i in range(n)}
+    provider = _MappingEmbeddingProvider(vectors_by_text)
+    config = _config(
+        tmp_path,
+        embedding_batch_size=n,
+        cluster_threshold=0.9,
+        min_cluster_size=2,
+        max_markets_for_clustering=5_000,
+    )
+
+    start = time.monotonic()
+    DefaultTopicAssigner(embedding_provider=provider).assign_topics(markets, config)
+    elapsed = time.monotonic() - start
+
+    assert elapsed < 1.0, (
+        f"Clustering 500 markets × 64 dims took {elapsed:.3f}s — expected < 1.0s. "
+        "Has the numpy vectorisation been reverted?"
+    )
