@@ -4,6 +4,7 @@ import json
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any, Sequence
+from urllib.error import HTTPError
 
 from ..contracts import MarketDescriptor
 from ..interfaces.market_source import MarketSource
@@ -38,13 +39,23 @@ class PolymarketMarketSource(MarketSource):
     def fetch_active_markets(self, config: Any | None = None) -> list[MarketDescriptor]:
         settings = self._resolve_settings(config)
         gamma_markets = self._fetch_gamma_markets(settings)
-        clob_markets = self._fetch_clob_markets(settings)
-        clob_by_condition_id = {market.condition_id: market for market in clob_markets}
+
+        # Collect the unique condition_ids present in the Gamma result, then look
+        # each one up individually against the CLOB /markets/{condition_id} endpoint.
+        # This avoids bulk-scanning tens of thousands of CLOB markets just to join
+        # a few hundred that Gamma returned.
+        seen_condition_ids: dict[str, _NormalizedCLOBMarket | None] = {}
+        for raw_market in gamma_markets:
+            cid = self._string_field(raw_market, "conditionId", "condition_id")
+            if cid and cid not in seen_condition_ids:
+                seen_condition_ids[cid] = self._fetch_clob_market(cid, settings)
 
         normalized: list[MarketDescriptor] = []
         seen_market_ids: set[str] = set()
         for raw_market in gamma_markets:
-            market = self._normalize_market(raw_market, clob_by_condition_id.get(raw_market.get("conditionId") or raw_market.get("condition_id")))
+            cid = self._string_field(raw_market, "conditionId", "condition_id")
+            clob_market = seen_condition_ids.get(cid) if cid else None
+            market = self._normalize_market(raw_market, clob_market)
             if market is None or market.market_id in seen_market_ids:
                 continue
             seen_market_ids.add(market.market_id)
@@ -130,41 +141,26 @@ class PolymarketMarketSource(MarketSource):
             offset += len(page)
         return markets
 
-    def _fetch_clob_markets(self, settings: PolymarketSourceSettings) -> list[_NormalizedCLOBMarket]:
-        markets: list[_NormalizedCLOBMarket] = []
-        next_cursor: str | None = None
-        seen_cursors: set[str] = set()
-        seen_pages: set[tuple[str, ...]] = set()
-        while True:
-            params: dict[str, str] = {"limit": str(settings.page_size)}
-            if next_cursor:
-                params["next_cursor"] = next_cursor
-            payload = self._request_json(settings.clob_base_url, "/simplified-markets", settings, params=params)
-            if not isinstance(payload, dict):
-                break
-            page = payload.get("data")
-            if not isinstance(page, list) or not page:
-                break
-            page_fingerprint = tuple(
-                self._string_field(item, "condition_id", "conditionId")
-                for item in page
-                if isinstance(item, dict)
+    def _fetch_clob_market(self, condition_id: str, settings: PolymarketSourceSettings) -> _NormalizedCLOBMarket | None:
+        """Fetch CLOB metadata for a single condition_id.
+
+        Returns None when the condition_id is absent from the order book (404),
+        which causes _is_active to treat the market as not tradable.  This is
+        intentional: a market that Gamma knows about but the CLOB has never
+        listed is not safely tradable, so we drop it rather than letting it
+        through silently.
+        """
+        try:
+            payload = self._request_json(
+                settings.clob_base_url,
+                f"/markets/{condition_id}",
+                settings,
             )
-            if page_fingerprint and page_fingerprint in seen_pages:
-                break
-            if page_fingerprint:
-                seen_pages.add(page_fingerprint)
-            for item in page:
-                normalized = self._normalize_clob_market(item)
-                if normalized is not None:
-                    markets.append(normalized)
-            next_cursor = payload.get("next_cursor")
-            if not isinstance(next_cursor, str) or not next_cursor.strip():
-                break
-            if next_cursor in seen_cursors:
-                break
-            seen_cursors.add(next_cursor)
-        return markets
+        except HTTPError as exc:
+            if exc.code == 404:
+                return None
+            raise
+        return self._normalize_clob_market(payload)
 
     def _request_json(
         self,
@@ -307,7 +303,7 @@ class PolymarketMarketSource(MarketSource):
         if coerce_bool(raw_market.get("archived"), False):
             return False
         if clob_market is None:
-            return True
+            return False
         if not clob_market.active or clob_market.closed or clob_market.archived:
             return False
         if not clob_market.accepting_orders:

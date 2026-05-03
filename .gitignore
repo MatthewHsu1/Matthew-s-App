@@ -138,6 +138,7 @@ tools/polymarket_discovery/tmp/
 tools/polymarket_discovery/**/__pycache__/
 tools/polymarket_discovery/**/*.pyc
 tools/polymarket_discovery/**/*.egg-info/
+tools/polymarket_discovery/configs
 
 # Agents
 .claude/

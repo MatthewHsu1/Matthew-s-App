@@ -3,8 +3,9 @@ from __future__ import annotations
 import json
 import sys
 from dataclasses import dataclass
+from io import BytesIO
 from pathlib import Path
-from urllib.error import URLError
+from urllib.error import HTTPError, URLError
 
 import pytest
 
@@ -46,6 +47,25 @@ def _fixture_payload(name: str) -> object:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def _make_clob_market(condition_id: str, token_ids: list[str], **overrides: object) -> dict:
+    """Return a minimal valid CLOB /markets/{condition_id} payload."""
+    data = {
+        "condition_id": condition_id,
+        "active": True,
+        "closed": False,
+        "archived": False,
+        "accepting_orders": True,
+        "tokens": [{"token_id": tid} for tid in token_ids],
+    }
+    data.update(overrides)
+    return data
+
+
+def _raise_404(url: str):
+    """Raise an HTTPError that looks like a 404."""
+    raise HTTPError(url, 404, "Not Found", {}, BytesIO(b""))
+
+
 def test_fixture_market_source_still_uses_configured_markets(tmp_path: Path) -> None:
     config = _config(
         tmp_path,
@@ -69,8 +89,14 @@ def test_fixture_market_source_still_uses_configured_markets(tmp_path: Path) -> 
 
 
 def test_polymarket_source_normalizes_and_filters_active_markets(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # gamma_markets_page1.json has: mkt-b (cond-b), mkt-a (cond-a), mkt-closed
+    # (cond-c, closed=True), mkt-missing (empty question).
+    # clob_simplified_markets_page1.json is no longer used; we mock per-market CLOB lookups.
     gamma_payload = _fixture_payload("gamma_markets_page1.json")
-    clob_payload = _fixture_payload("clob_simplified_markets_page1.json")
+    clob_markets = {
+        "cond-a": _make_clob_market("cond-a", ["tok-a-no", "tok-a-yes"]),
+        "cond-b": _make_clob_market("cond-b", ["tok-b-no", "tok-b-yes"]),
+    }
     requested_urls: list[str] = []
     config = _config(
         tmp_path,
@@ -89,8 +115,12 @@ def test_polymarket_source_normalizes_and_filters_active_markets(tmp_path: Path,
         requested_urls.append(url)
         if "gamma-api.polymarket.com/markets" in url:
             return _FakeResponse(gamma_payload)
-        if "clob.polymarket.com/simplified-markets" in url:
-            return _FakeResponse(clob_payload)
+        for cid, payload in clob_markets.items():
+            if f"clob.polymarket.com/markets/{cid}" in url:
+                return _FakeResponse(payload)
+        # Any other CLOB market lookup (e.g. cond-c, cond-missing) → 404
+        if "clob.polymarket.com/markets/" in url:
+            _raise_404(url)
         raise AssertionError(f"unexpected url: {url}")
 
     monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
@@ -103,11 +133,11 @@ def test_polymarket_source_normalizes_and_filters_active_markets(tmp_path: Path,
     assert [market.end_date for market in markets] == ["2026-11-03", "2026-11-03T23:59:59Z"]
     assert markets[0].token_ids == ["tok-a-no", "tok-a-yes"]
     assert markets[1].token_ids == ["tok-b-no", "tok-b-yes"]
-    assert any(
-        url.startswith("https://clob.polymarket.com/simplified-markets?")
-        and "limit=2" in url
-        for url in requested_urls
-    )
+    # Per-market CLOB requests should have been issued for cond-a and cond-b
+    assert any("clob.polymarket.com/markets/cond-a" in u for u in requested_urls)
+    assert any("clob.polymarket.com/markets/cond-b" in u for u in requested_urls)
+    # Old bulk simplified-markets endpoint must NOT be called
+    assert not any("simplified-markets" in u for u in requested_urls)
 
 
 def test_polymarket_source_skips_malformed_and_inactive_records(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -124,7 +154,6 @@ def test_polymarket_source_skips_malformed_and_inactive_records(tmp_path: Path, 
             "active": True,
             "closed": False,
             "archived": False,
-            "clobTokenIds": ["tok-good"],
         },
         {
             "id": "mkt-inactive",
@@ -152,7 +181,6 @@ def test_polymarket_source_skips_malformed_and_inactive_records(tmp_path: Path, 
             "archived": False,
         },
     ]
-    clob_payload = {"limit": 1, "next_cursor": None, "count": 1, "data": []}
     config = _config(
         tmp_path,
         polymarket={
@@ -169,8 +197,12 @@ def test_polymarket_source_skips_malformed_and_inactive_records(tmp_path: Path, 
         url = getattr(request, "full_url", request)
         if "gamma-api.polymarket.com/markets" in url:
             return _FakeResponse(gamma_payload)
-        if "clob.polymarket.com/simplified-markets" in url:
-            return _FakeResponse(clob_payload)
+        if "clob.polymarket.com/markets/cond-good" in url:
+            return _FakeResponse(_make_clob_market("cond-good", ["tok-good"]))
+        if "clob.polymarket.com/markets/cond-inactive" in url:
+            return _FakeResponse(_make_clob_market("cond-inactive", ["tok-inactive"]))
+        if "clob.polymarket.com/markets/" in url:
+            _raise_404(url)
         raise AssertionError(f"unexpected url: {url}")
 
     monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
@@ -178,6 +210,69 @@ def test_polymarket_source_skips_malformed_and_inactive_records(tmp_path: Path, 
     markets = PolymarketMarketSource().fetch_active_markets(config)
 
     assert [market.market_id for market in markets] == ["mkt-good"]
+
+
+def test_polymarket_source_drops_market_when_clob_returns_404(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A Gamma market whose CLOB /markets/{condition_id} lookup returns 404 must be
+    dropped from the result, not passed through.  This pins down the design decision:
+    a market absent from the CLOB order book is not safely tradable.
+    """
+    gamma_payload = [
+        {
+            "id": "mkt-present",
+            "question": "Will present happen?",
+            "conditionId": "cond-present",
+            "slug": "present",
+            "description": "Present in CLOB",
+            "resolutionSource": "Source",
+            "endDate": "2026-11-04T00:00:00Z",
+            "category": "testing",
+            "active": True,
+            "closed": False,
+            "archived": False,
+        },
+        {
+            "id": "mkt-missing-clob",
+            "question": "Will missing happen?",
+            "conditionId": "cond-missing-clob",
+            "slug": "missing-clob",
+            "description": "Not in CLOB order book",
+            "resolutionSource": "Source",
+            "endDate": "2026-11-04T00:00:00Z",
+            "category": "testing",
+            "active": True,
+            "closed": False,
+            "archived": False,
+        },
+    ]
+    config = _config(
+        tmp_path,
+        polymarket={
+            "gamma_base_url": "https://gamma-api.polymarket.com",
+            "clob_base_url": "https://clob.polymarket.com",
+            "page_size": 10,
+            "timeout_seconds": 1,
+            "retries": 0,
+            "backoff_seconds": 0,
+        },
+    )
+
+    def fake_urlopen(request, timeout=0):
+        url = getattr(request, "full_url", request)
+        if "gamma-api.polymarket.com/markets" in url:
+            return _FakeResponse(gamma_payload)
+        if "clob.polymarket.com/markets/cond-present" in url:
+            return _FakeResponse(_make_clob_market("cond-present", ["tok-present"]))
+        if "clob.polymarket.com/markets/cond-missing-clob" in url:
+            _raise_404(url)
+        raise AssertionError(f"unexpected url: {url}")
+
+    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+
+    markets = PolymarketMarketSource().fetch_active_markets(config)
+
+    # Only mkt-present must survive; mkt-missing-clob must be dropped
+    assert [market.market_id for market in markets] == ["mkt-present"]
 
 
 def test_polymarket_source_orders_deterministically(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -209,28 +304,9 @@ def test_polymarket_source_orders_deterministically(tmp_path: Path, monkeypatch:
             "archived": False,
         },
     ]
-    clob_payload = {
-        "limit": 10,
-        "next_cursor": None,
-        "count": 2,
-        "data": [
-            {
-                "condition_id": "cond-z",
-                "active": True,
-                "closed": False,
-                "archived": False,
-                "accepting_orders": True,
-                "tokens": [{"token_id": "tok-z"}],
-            },
-            {
-                "condition_id": "cond-a",
-                "active": True,
-                "closed": False,
-                "archived": False,
-                "accepting_orders": True,
-                "tokens": [{"token_id": "tok-a"}],
-            },
-        ],
+    clob_markets = {
+        "cond-z": _make_clob_market("cond-z", ["tok-z"]),
+        "cond-a": _make_clob_market("cond-a", ["tok-a"]),
     }
     config = _config(
         tmp_path,
@@ -248,8 +324,9 @@ def test_polymarket_source_orders_deterministically(tmp_path: Path, monkeypatch:
         url = getattr(request, "full_url", request)
         if "gamma-api.polymarket.com/markets" in url:
             return _FakeResponse(gamma_payload)
-        if "clob.polymarket.com/simplified-markets" in url:
-            return _FakeResponse(clob_payload)
+        for cid, payload in clob_markets.items():
+            if f"clob.polymarket.com/markets/{cid}" in url:
+                return _FakeResponse(payload)
         raise AssertionError(f"unexpected url: {url}")
 
     monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
@@ -258,89 +335,6 @@ def test_polymarket_source_orders_deterministically(tmp_path: Path, monkeypatch:
 
     assert [market.market_id for market in markets] == ["mkt-a", "mkt-z"]
     assert [market.end_date for market in markets] == ["2026-11-01T00:00:00Z", "2026-12-01T00:00:00Z"]
-
-
-def test_polymarket_source_stops_on_repeated_clob_page(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    gamma_payload = [
-        {
-            "id": "mkt-a",
-            "question": "Will A happen?",
-            "conditionId": "cond-a",
-            "slug": "a",
-            "description": "A market",
-            "resolutionSource": "Source",
-            "endDate": "2026-11-01T00:00:00Z",
-            "category": "testing",
-            "active": True,
-            "closed": False,
-            "archived": False,
-        }
-    ]
-    clob_calls: list[str] = []
-    clob_payload_1 = {
-        "limit": 10,
-        "next_cursor": "cursor-1",
-        "count": 1,
-        "data": [
-            {
-                "condition_id": "cond-a",
-                "active": True,
-                "closed": False,
-                "archived": False,
-                "accepting_orders": True,
-                "tokens": [{"token_id": "tok-a"}],
-            }
-        ],
-    }
-    clob_payload_2 = {
-        "limit": 10,
-        "next_cursor": "cursor-2",
-        "count": 1,
-        "data": [
-            {
-                "condition_id": "cond-a",
-                "active": True,
-                "closed": False,
-                "archived": False,
-                "accepting_orders": True,
-                "tokens": [{"token_id": "tok-a"}],
-            }
-        ],
-    }
-    config = _config(
-        tmp_path,
-        polymarket={
-            "gamma_base_url": "https://gamma-api.polymarket.com",
-            "clob_base_url": "https://clob.polymarket.com",
-            "page_size": 10,
-            "timeout_seconds": 1,
-            "retries": 1,
-            "backoff_seconds": 0,
-        },
-    )
-
-    def fake_urlopen(request, timeout=0):
-        url = getattr(request, "full_url", request)
-        if "gamma-api.polymarket.com/markets" in url:
-            return _FakeResponse(gamma_payload)
-        if "clob.polymarket.com/simplified-markets" in url:
-            clob_calls.append(url)
-            if len(clob_calls) == 1:
-                return _FakeResponse(clob_payload_1)
-            if len(clob_calls) == 2:
-                return _FakeResponse(clob_payload_2)
-            raise AssertionError(f"unexpected repeated CLOB request: {url}")
-        raise AssertionError(f"unexpected url: {url}")
-
-    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
-
-    markets = PolymarketMarketSource().fetch_active_markets(config)
-
-    assert [market.market_id for market in markets] == ["mkt-a"]
-    assert clob_calls == [
-        "https://clob.polymarket.com/simplified-markets?limit=10",
-        "https://clob.polymarket.com/simplified-markets?limit=10&next_cursor=cursor-1",
-    ]
 
 
 def test_polymarket_source_orders_same_day_by_timestamp(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -372,28 +366,9 @@ def test_polymarket_source_orders_same_day_by_timestamp(tmp_path: Path, monkeypa
             "archived": False,
         },
     ]
-    clob_payload = {
-        "limit": 10,
-        "next_cursor": None,
-        "count": 2,
-        "data": [
-            {
-                "condition_id": "cond-late",
-                "active": True,
-                "closed": False,
-                "archived": False,
-                "accepting_orders": True,
-                "tokens": [{"token_id": "tok-late"}],
-            },
-            {
-                "condition_id": "cond-early",
-                "active": True,
-                "closed": False,
-                "archived": False,
-                "accepting_orders": True,
-                "tokens": [{"token_id": "tok-early"}],
-            },
-        ],
+    clob_markets = {
+        "cond-late": _make_clob_market("cond-late", ["tok-late"]),
+        "cond-early": _make_clob_market("cond-early", ["tok-early"]),
     }
     config = _config(
         tmp_path,
@@ -411,8 +386,9 @@ def test_polymarket_source_orders_same_day_by_timestamp(tmp_path: Path, monkeypa
         url = getattr(request, "full_url", request)
         if "gamma-api.polymarket.com/markets" in url:
             return _FakeResponse(gamma_payload)
-        if "clob.polymarket.com/simplified-markets" in url:
-            return _FakeResponse(clob_payload)
+        for cid, payload in clob_markets.items():
+            if f"clob.polymarket.com/markets/{cid}" in url:
+                return _FakeResponse(payload)
         raise AssertionError(f"unexpected url: {url}")
 
     monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
@@ -471,7 +447,6 @@ def test_normalizer_populates_description_from_gamma_description_field(
             "clobTokenIds": ["tok-x"],
         },
     ]
-    clob_payload = {"limit": 10, "next_cursor": None, "count": 0, "data": []}
     config = _config(
         tmp_path,
         polymarket={
@@ -488,8 +463,8 @@ def test_normalizer_populates_description_from_gamma_description_field(
         url = getattr(request, "full_url", request)
         if "gamma-api.polymarket.com/markets" in url:
             return _FakeResponse(gamma_payload)
-        if "clob.polymarket.com/simplified-markets" in url:
-            return _FakeResponse(clob_payload)
+        if "clob.polymarket.com/markets/cond-x" in url:
+            return _FakeResponse(_make_clob_market("cond-x", ["tok-x"]))
         raise AssertionError(f"unexpected url: {url}")
 
     monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
@@ -534,7 +509,6 @@ def test_normalizer_resolution_source_empty_when_absent(
             "clobTokenIds": ["tok-nodesc"],
         },
     ]
-    clob_payload = {"limit": 10, "next_cursor": None, "count": 0, "data": []}
     config = _config(
         tmp_path,
         polymarket={
@@ -551,8 +525,8 @@ def test_normalizer_resolution_source_empty_when_absent(
         url = getattr(request, "full_url", request)
         if "gamma-api.polymarket.com/markets" in url:
             return _FakeResponse(gamma_payload)
-        if "clob.polymarket.com/simplified-markets" in url:
-            return _FakeResponse(clob_payload)
+        if "clob.polymarket.com/markets/cond-nodesc" in url:
+            return _FakeResponse(_make_clob_market("cond-nodesc", ["tok-nodesc"]))
         raise AssertionError(f"unexpected url: {url}")
 
     monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
