@@ -34,7 +34,7 @@ class RateLimit:
 # Defaults used by the process-level limiter.
 DEFAULT_LIMITS: dict[str, RateLimit] = {
     "gamma-api.polymarket.com": RateLimit(rate_per_second=30.0, burst=30),
-    "clob.polymarket.com": RateLimit(rate_per_second=750.0, burst=750),
+    "clob.polymarket.com": RateLimit(rate_per_second=10.0, burst=10),
 }
 
 
@@ -55,12 +55,17 @@ class _Bucket:
         while True:
             with self._lock:
                 now = time.monotonic()
+
                 elapsed = now - self._last_refill
+
                 self._last_refill = now
+
                 self._tokens = min(self._burst, self._tokens + elapsed * self._rate_per_second)
+
                 if self._tokens >= 1.0:
                     self._tokens -= 1.0
                     return
+                
                 # How long until the next token arrives?
                 deficit = 1.0 - self._tokens
                 wait = deficit / self._rate_per_second
@@ -83,9 +88,11 @@ class RateLimiter:
 
     def __init__(self, limits: dict[str, RateLimit] | None = None) -> None:
         resolved = limits if limits is not None else DEFAULT_LIMITS
+
         self._buckets: dict[str, _Bucket] = {
             host: _Bucket(limit) for host, limit in resolved.items()
         }
+
         # Protects the bucket dict itself (not individual buckets).
         self._lock = threading.Lock()
 
@@ -95,8 +102,10 @@ class RateLimiter:
         Hosts not in the configured limits map return immediately.
         """
         bucket = self._buckets.get(host)
+
         if bucket is None:
             return
+        
         bucket.acquire()
 
 
