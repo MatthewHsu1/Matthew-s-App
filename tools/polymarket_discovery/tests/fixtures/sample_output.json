@@ -43,7 +43,7 @@
   "baskets": [
     {
       "basket_id": "basket-mkt-1__mkt-2",
-      "token_ids": ["tok-a-yes", "tok-b-yes"],
+      "token_ids": ["tok-a-yes", "tok-a-no", "tok-b-yes", "tok-b-no"],
       "expected_sum": 1.0,
       "dependency_basis": ["mkt-1__mkt-2"]
     }

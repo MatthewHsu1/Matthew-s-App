@@ -14,7 +14,7 @@
         "rules": "Standard rules",
         "end_date": "2026-11-03T23:59:59Z",
         "topic": "election",
-        "token_ids": ["tok-a-yes"]
+        "token_ids": ["tok-a-yes", "tok-a-no"]
       },
       {
         "market_id": "m2",
@@ -24,7 +24,7 @@
         "rules": "Standard rules",
         "end_date": "2026-11-03",
         "topic": "election",
-        "token_ids": ["tok-b-yes"]
+        "token_ids": ["tok-b-yes", "tok-b-no"]
       }
     ]
   }

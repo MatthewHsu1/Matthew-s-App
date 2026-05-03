@@ -174,7 +174,9 @@
             }
           },
           "expected_sum": {
-            "type": "number"
+            "type": "number",
+            "minimum": 1.0,
+            "maximum": 1.0
           },
           "dependency_basis": {
             "type": "array",

@@ -172,6 +172,8 @@ def _market(
     topic: str = "topic-01",
     end_date: str = "2026-11-03",
 ) -> MarketDescriptor:
+    # Binary market with YES and NO tokens; exercises the completeness rule
+    # (basket token_ids must equal the union of all participating market token_ids).
     return MarketDescriptor(
         market_id=market_id,
         condition_id=f"cond-{market_id}",
@@ -180,7 +182,7 @@ def _market(
         rules="Rules",
         end_date=end_date,
         topic=topic,
-        token_ids=[f"tok-{market_id}-yes"],
+        token_ids=[f"tok-{market_id}-yes", f"tok-{market_id}-no"],
     )
 
 
