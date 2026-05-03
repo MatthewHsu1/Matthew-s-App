@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 from ..interfaces.embedding_provider import EmbeddingProvider
 from ..interfaces.llm_provider import LLMProvider
@@ -13,6 +13,9 @@ from .settings import (
     resolve_embedding_settings,
     resolve_llm_settings,
 )
+
+if TYPE_CHECKING:
+    from ..utils.logging_utils import JsonlStageLogger
 
 
 def build_embedding_provider(config: Any | None = None) -> EmbeddingProvider:
@@ -33,7 +36,11 @@ def build_embedding_provider(config: Any | None = None) -> EmbeddingProvider:
     raise ValueError(f"Unsupported embedding provider: {settings.provider_name}")
 
 
-def build_llm_provider(config: Any | None = None) -> LLMProvider:
+def build_llm_provider(
+    config: Any | None = None,
+    *,
+    stage_logger: JsonlStageLogger | None = None,
+) -> LLMProvider:
     settings = resolve_llm_settings(config)
     if settings.provider_name in {"stub", "deterministic"}:
         return DeepSeekLLMProviderStub(model_name=settings.model_name)
@@ -43,6 +50,7 @@ def build_llm_provider(config: Any | None = None) -> LLMProvider:
         return CodexCliLLMProvider(
             settings=settings,
             invoker=_build_subprocess_codex_invoker(config),
+            stage_logger=stage_logger,
         )
     raise ValueError(f"Unsupported llm provider: {settings.provider_name}")
 

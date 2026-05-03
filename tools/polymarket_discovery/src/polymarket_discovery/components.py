@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from .interfaces.market_source import MarketSource
 
@@ -16,6 +16,9 @@ from .stages import (
     LLMDependencyInferencer,
     TopicEndDateCandidateReducer,
 )
+
+if TYPE_CHECKING:
+    from .utils.logging_utils import JsonlStageLogger
 
 
 @dataclass(slots=True)
@@ -76,12 +79,16 @@ def _select_market_source(config: DiscoveryConfig | None = None) -> MarketSource
     raise ValueError(f"Unsupported market source: {source_name}")
 
 
-def build_components(config: DiscoveryConfig) -> PipelineComponents:
+def build_components(
+    config: DiscoveryConfig,
+    *,
+    stage_logger: JsonlStageLogger | None = None,
+) -> PipelineComponents:
     return PipelineComponents(
         market_source=_select_market_source(config),
         topic_assigner=DefaultTopicAssigner(),
         candidate_reducer=TopicEndDateCandidateReducer(),
-        dependency_inferencer=LLMDependencyInferencer(),
+        dependency_inferencer=LLMDependencyInferencer(stage_logger=stage_logger),
         basket_builder=DefaultBasketBuilder(),
         basket_validator=DefaultBasketValidator(),
     )

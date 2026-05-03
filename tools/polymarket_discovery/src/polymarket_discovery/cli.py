@@ -33,7 +33,7 @@ def run_command(config_path: str | Path, components: PipelineComponents | None =
 
     output_path = artifact_dir / "baskets.json"
     try:
-        resolved_components = components or build_default_components(config)
+        resolved_components = components or build_default_components(config, stage_logger=stage_logger)
         result = run_pipeline(config=config, components=resolved_components, stage_logger=stage_logger)
         write_run_artifact(result, str(output_path))
     except Exception as exc:

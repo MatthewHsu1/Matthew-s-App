@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Sequence
+from typing import TYPE_CHECKING, Any, Sequence
 
 from ..contracts import DependencyEdge, MarketDescriptor
 from ..interfaces.dependency_inferencer import DependencyInferencer
@@ -11,10 +11,18 @@ from ..providers.factories import build_llm_provider
 from ..providers.factories import configures_llm_provider
 from ..providers.llm_codec import DEFAULT_DEPENDENCY_BATCH_SIZE, validate_llm_dependency_prediction
 
+if TYPE_CHECKING:
+    from ..utils.logging_utils import JsonlStageLogger
+
 
 class LLMDependencyInferencer(DependencyInferencer):
-    def __init__(self, llm_provider: LLMProvider | None = None) -> None:
+    def __init__(
+        self,
+        llm_provider: LLMProvider | None = None,
+        stage_logger: JsonlStageLogger | None = None,
+    ) -> None:
         self._llm_provider = llm_provider
+        self._stage_logger = stage_logger
 
     def infer_dependencies(
         self,
@@ -91,4 +99,4 @@ class LLMDependencyInferencer(DependencyInferencer):
     def _resolve_provider(self, config: Any | None) -> LLMProvider:
         if self._llm_provider is not None and not configures_llm_provider(config):
             return self._llm_provider
-        return build_llm_provider(config)
+        return build_llm_provider(config, stage_logger=self._stage_logger)

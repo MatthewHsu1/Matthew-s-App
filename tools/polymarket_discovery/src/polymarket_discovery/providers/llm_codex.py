@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import json
+import logging
 import subprocess
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Sequence
 
 from ..contracts import MarketDescriptor
@@ -17,32 +20,102 @@ from .llm_codec import (
     parse_llm_basket_groups,
 )
 from .settings import LLMProviderSettings
+from ..utils.logging_utils import JsonlStageLogger
 
+# Resolved once at module load; stable for the lifetime of the process.
+_SCHEMAS_DIR = Path(__file__).parent / "schemas"
+_DEPENDENCY_SCHEMA_PATH = _SCHEMAS_DIR / "dependency_predictions.json"
+_BASKET_SCHEMA_PATH = _SCHEMAS_DIR / "basket_groups.json"
+
+logger = logging.getLogger(__name__)
 
 _BATCHED_SYSTEM_PREAMBLE = (
     "You infer market dependencies. You will receive a JSON object with a 'pairs' array. "
     "Each pair has a pair_id, left_market, and right_market. "
-    "Reply with a single JSON object containing a 'predictions' array. "
-    "Each element must echo back the pair_id and include edge_type, confidence, and rationale. "
-    "edge_type must be one of mutually_exclusive, conditional, related. "
-    "confidence must be a number from 0 to 1. "
-    "You MUST return exactly one prediction for every pair_id in the input, in any order. "
-    "Do not wrap the JSON in code fences or include any other text."
+    "For every pair, determine the edge_type (mutually_exclusive, conditional, or related), "
+    "a confidence score from 0 to 1, and a rationale. "
+    "You MUST return exactly one prediction for every pair_id in the input, echoing the pair_id verbatim."
 )
 
 _BASKET_SYSTEM_PREAMBLE = (
     "You identify basket structure in prediction markets. "
     "Given a list of markets that share a topic and end date, identify subsets "
     "whose YES-token prices sum to 1.0 (complete outcome sets). "
-    'Reply with a single JSON object containing a "baskets" array. '
-    "Each element must have basket_id (string), market_ids (array of market_id strings), "
-    "and rationale (string). Only include markets that genuinely form a complete outcome set. "
-    'Return {"baskets": []} if no complete sets are found. '
-    "Do not wrap the JSON in code fences or include any other text."
+    "Only include markets that genuinely form a complete outcome set. "
+    "Return an empty baskets array if no complete sets are found."
 )
 
 
 _FENCE_PREFIXES = ("```json", "```")
+
+
+@dataclass(slots=True, frozen=True)
+class CodexUsage:
+    input_tokens: int
+    cached_input_tokens: int
+    output_tokens: int
+    reasoning_output_tokens: int
+
+
+@dataclass(slots=True, frozen=True)
+class CodexInvocationResult:
+    text: str
+    usage: CodexUsage | None
+
+
+def _parse_jsonl_response(raw: str) -> CodexInvocationResult:
+    """Parse a codex ``--json`` JSONL stream and extract the agent message.
+
+    Rules:
+    - Lines that are not valid JSON are silently skipped.
+    - If multiple ``agent_message`` items exist, the last one wins (final turn).
+    - Raises ``RuntimeError`` if no ``agent_message`` item is found.
+    - ``usage`` is ``None`` when no ``turn.completed`` event is present.
+    """
+    last_agent_text: str | None = None
+    usage: CodexUsage | None = None
+
+    for line in raw.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+
+        if not isinstance(event, dict):
+            continue
+
+        event_type = event.get("type")
+
+        if event_type == "item.completed":
+            item = event.get("item")
+            if isinstance(item, dict) and item.get("type") == "agent_message":
+                text = item.get("text")
+                if isinstance(text, str):
+                    last_agent_text = text
+
+        elif event_type == "turn.completed":
+            raw_usage = event.get("usage")
+            if isinstance(raw_usage, dict):
+                try:
+                    usage = CodexUsage(
+                        input_tokens=int(raw_usage.get("input_tokens", 0)),
+                        cached_input_tokens=int(raw_usage.get("cached_input_tokens", 0)),
+                        output_tokens=int(raw_usage.get("output_tokens", 0)),
+                        reasoning_output_tokens=int(raw_usage.get("reasoning_output_tokens", 0)),
+                    )
+                except (TypeError, ValueError):
+                    pass
+
+    if last_agent_text is None:
+        raise RuntimeError(
+            "codex JSONL output contained no agent_message item; "
+            "cannot extract model response"
+        )
+
+    return CodexInvocationResult(text=last_agent_text, usage=usage)
 
 
 def _extract_json_object(raw: str) -> str:
@@ -90,32 +163,81 @@ def _extract_json_object(raw: str) -> str:
 class CodexCliLLMProvider(LLMProvider):
     settings: LLMProviderSettings
     invoker: CodexInvoker
+    stage_logger: JsonlStageLogger | None = None
+
+    def _run_and_log(
+        self,
+        prompt: str,
+        *,
+        output_schema_path: Path | None = None,
+    ) -> str:
+        result = self.invoker.run(
+            prompt,
+            timeout_seconds=self.settings.timeout_seconds,
+            output_schema_path=output_schema_path,
+        )
+        if result.usage is not None:
+            u = result.usage
+            if self.stage_logger is not None:
+                self.stage_logger.log(
+                    event="llm_usage",
+                    input_tokens=u.input_tokens,
+                    cached_input_tokens=u.cached_input_tokens,
+                    output_tokens=u.output_tokens,
+                    reasoning_output_tokens=u.reasoning_output_tokens,
+                )
+            else:
+                logger.info(
+                    "codex_usage",
+                    extra={
+                        "input_tokens": u.input_tokens,
+                        "cached_input_tokens": u.cached_input_tokens,
+                        "output_tokens": u.output_tokens,
+                        "reasoning_output_tokens": u.reasoning_output_tokens,
+                    },
+                )
+        return result.text
+
+    @staticmethod
+    def _parse_response(raw: str) -> str:
+        """Return a JSON string from the model's raw text.
+
+        When schema enforcement is active the model returns clean JSON, so we
+        attempt a direct parse first.  If that fails (e.g. the model wrapped
+        the output in a code fence despite schema constraints), we fall back to
+        the brace-walking ``_extract_json_object`` helper so callers downstream
+        always receive a clean JSON string.
+        """
+        text = raw.strip()
+        try:
+            json.loads(text)
+            return text
+        except json.JSONDecodeError:
+            return _extract_json_object(raw)
 
     def infer_dependencies_batched(
         self,
         pairs: Sequence[MarketPair],
     ) -> list[LLMDependencyPrediction]:
-        """Infer dependency metadata for a batch of market pairs via the Codex CLI."""
         if not pairs:
             return []
         user_prompt = build_batched_dependency_prompt(pairs)
         full_prompt = f"{_BATCHED_SYSTEM_PREAMBLE}\n\n{user_prompt}"
-        raw = self.invoker.run(full_prompt, timeout_seconds=self.settings.timeout_seconds)
-        json_text = _extract_json_object(raw)
+        raw = self._run_and_log(full_prompt, output_schema_path=_DEPENDENCY_SCHEMA_PATH)
+        json_text = self._parse_response(raw)
         return parse_batched_dependency_predictions(json_text, expected_count=len(pairs))
 
     def infer_basket_groups(
         self,
         markets: Sequence[MarketDescriptor],
     ) -> list[LLMBasketGroup]:
-        """Ask the Codex CLI to identify N-way basket groupings for the topic group."""
         if len(markets) < 2:
             return []
         known_ids = frozenset(m.market_id for m in markets)
         user_prompt = build_basket_prompt(markets)
         full_prompt = f"{_BASKET_SYSTEM_PREAMBLE}\n\n{user_prompt}"
-        raw = self.invoker.run(full_prompt, timeout_seconds=self.settings.timeout_seconds)
-        json_text = _extract_json_object(raw)
+        raw = self._run_and_log(full_prompt, output_schema_path=_BASKET_SCHEMA_PATH)
+        json_text = self._parse_response(raw)
         return parse_llm_basket_groups(json_text, known_market_ids=known_ids)
 
 
@@ -126,10 +248,18 @@ class SubprocessCodexInvoker(CodexInvoker):
     use_json_flag: bool = True
     extra_env: dict[str, str] = field(default_factory=dict)
 
-    def run(self, prompt: str, *, timeout_seconds: float) -> str:
+    def run(
+        self,
+        prompt: str,
+        *,
+        timeout_seconds: float,
+        output_schema_path: Path | None = None,
+    ) -> CodexInvocationResult:
         argv = [self.binary, *self.base_args]
         if self.use_json_flag:
             argv.append("--json")
+        if output_schema_path is not None:
+            argv.extend(["--output-schema", str(output_schema_path)])
 
         try:
             completed = subprocess.run(
@@ -153,7 +283,12 @@ class SubprocessCodexInvoker(CodexInvoker):
             raise RuntimeError(
                 f"codex exited {completed.returncode}: {stderr_excerpt}"
             )
-        return completed.stdout
+
+        stdout = completed.stdout
+        if self.use_json_flag:
+            return _parse_jsonl_response(stdout)
+
+        return CodexInvocationResult(text=stdout, usage=None)
 
     def _build_env(self) -> dict[str, str]:
         import os
