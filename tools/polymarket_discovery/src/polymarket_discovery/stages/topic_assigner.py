@@ -282,7 +282,7 @@ class DefaultTopicAssigner(TopicAssigner):
 
     @staticmethod
     def _build_embedding_text(market: MarketDescriptor) -> str:
-        parts = [market.question, market.description, market.rules]
+        parts = [market.question, market.description]
         cleaned = [
             part.strip() for part in parts if isinstance(part, str) and part.strip()
         ]
@@ -295,10 +295,10 @@ class DefaultTopicAssigner(TopicAssigner):
             condition_id=market.condition_id,
             question=market.question,
             description=market.description,
-            rules=market.rules,
             end_date=market.end_date,
             topic=topic,
             token_ids=list(market.token_ids),
+            resolution_source=market.resolution_source,
         )
 
     @staticmethod

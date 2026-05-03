@@ -55,7 +55,6 @@ def test_fixture_market_source_still_uses_configured_markets(tmp_path: Path) -> 
                 "condition_id": "cond-fixture-a",
                 "question": "Fixture market A?",
                 "description": "Fixture",
-                "rules": "Fixture rules",
                 "end_date": "2026-11-03",
                 "topic": "fixture",
                 "token_ids": ["tok-fixture-a"],
@@ -443,3 +442,123 @@ def test_polymarket_source_surfaces_retryable_transport_failures(tmp_path: Path,
 
     with pytest.raises(URLError):
         PolymarketMarketSource().fetch_active_markets(config)
+
+
+def test_normalizer_populates_description_from_gamma_description_field(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """description must be populated from Gamma's description field (the structured
+    resolution criteria).  resolution_source must carry the short attribution label
+    from resolutionSource — the two fields must be distinct.
+    """
+    resolution_criteria = (
+        "This market resolves YES if the named candidate wins the presidency "
+        "as certified by the Electoral College. Otherwise resolves NO."
+    )
+    gamma_payload = [
+        {
+            "id": "mkt-x",
+            "question": "Will Candidate X win?",
+            "conditionId": "cond-x",
+            "slug": "candidate-x",
+            "description": resolution_criteria,
+            "resolutionSource": "Official results",
+            "endDate": "2026-11-04T00:00:00Z",
+            "category": "politics",
+            "active": True,
+            "closed": False,
+            "archived": False,
+            "clobTokenIds": ["tok-x"],
+        },
+    ]
+    clob_payload = {"limit": 10, "next_cursor": None, "count": 0, "data": []}
+    config = _config(
+        tmp_path,
+        polymarket={
+            "gamma_base_url": "https://gamma-api.polymarket.com",
+            "clob_base_url": "https://clob.polymarket.com",
+            "page_size": 10,
+            "timeout_seconds": 1,
+            "retries": 1,
+            "backoff_seconds": 0,
+        },
+    )
+
+    def fake_urlopen(request, timeout=0):
+        url = getattr(request, "full_url", request)
+        if "gamma-api.polymarket.com/markets" in url:
+            return _FakeResponse(gamma_payload)
+        if "clob.polymarket.com/simplified-markets" in url:
+            return _FakeResponse(clob_payload)
+        raise AssertionError(f"unexpected url: {url}")
+
+    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+
+    markets = PolymarketMarketSource().fetch_active_markets(config)
+
+    assert len(markets) == 1
+    market = markets[0]
+    # description must contain the full resolution criteria text
+    assert market.description == resolution_criteria, (
+        f"Expected description to contain resolution criteria text, got: {market.description!r}"
+    )
+    # resolution_source must carry the attribution label, not the full criteria
+    assert market.resolution_source == "Official results", (
+        f"Expected resolution_source='Official results', got: {market.resolution_source!r}"
+    )
+    # MarketDescriptor must no longer have a 'rules' attribute
+    assert not hasattr(market, "rules"), (
+        "MarketDescriptor must not have a 'rules' attribute"
+    )
+
+
+def test_normalizer_resolution_source_empty_when_absent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A market with no resolutionSource should produce an empty resolution_source
+    field (not an error), and an empty description field when description is absent.
+    """
+    gamma_payload = [
+        {
+            "id": "mkt-nodesc",
+            "question": "Will X happen?",
+            "conditionId": "cond-nodesc",
+            "slug": "x",
+            "description": "",
+            "resolutionSource": "FBI website",
+            "endDate": "2026-11-04T00:00:00Z",
+            "category": "crime",
+            "active": True,
+            "closed": False,
+            "archived": False,
+            "clobTokenIds": ["tok-nodesc"],
+        },
+    ]
+    clob_payload = {"limit": 10, "next_cursor": None, "count": 0, "data": []}
+    config = _config(
+        tmp_path,
+        polymarket={
+            "gamma_base_url": "https://gamma-api.polymarket.com",
+            "clob_base_url": "https://clob.polymarket.com",
+            "page_size": 10,
+            "timeout_seconds": 1,
+            "retries": 1,
+            "backoff_seconds": 0,
+        },
+    )
+
+    def fake_urlopen(request, timeout=0):
+        url = getattr(request, "full_url", request)
+        if "gamma-api.polymarket.com/markets" in url:
+            return _FakeResponse(gamma_payload)
+        if "clob.polymarket.com/simplified-markets" in url:
+            return _FakeResponse(clob_payload)
+        raise AssertionError(f"unexpected url: {url}")
+
+    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+
+    markets = PolymarketMarketSource().fetch_active_markets(config)
+
+    assert len(markets) == 1
+    assert markets[0].description == "", "description must be empty string when no description is present"
+    assert markets[0].resolution_source == "FBI website", "resolution_source must be populated from resolutionSource"

@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 @dataclass(slots=True)
 class MarketDescriptor:
@@ -6,7 +6,7 @@ class MarketDescriptor:
     condition_id: str
     question: str
     description: str
-    rules: str
     end_date: str
     topic: str
     token_ids: list[str]
+    resolution_source: str = field(default="")

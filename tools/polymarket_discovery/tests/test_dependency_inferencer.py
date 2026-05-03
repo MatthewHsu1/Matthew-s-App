@@ -51,7 +51,6 @@ def _market(market_id: str, question: str) -> MarketDescriptor:
         condition_id=f"cond-{market_id}",
         question=question,
         description="desc",
-        rules="rules",
         end_date="2026-11-03",
         topic="election",
         token_ids=[f"tok-{market_id}"],

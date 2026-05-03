@@ -52,7 +52,6 @@ def _market(
     *,
     question: str,
     description: str = "",
-    rules: str = "",
     topic: str = "",
 ) -> MarketDescriptor:
     return MarketDescriptor(
@@ -60,7 +59,6 @@ def _market(
         condition_id=f"cond-{market_id}",
         question=question,
         description=description,
-        rules=rules,
         end_date="2026-11-03",
         topic=topic,
         token_ids=[f"tok-{market_id}"],
@@ -229,16 +227,16 @@ def test_topic_assigner_merges_embedding_and_topic_tuning_sections(
     assert provider.settings.model_name == "linq-embed-mistral"
 
     markets = [
-        _market("m1", question="Will Candidate A win?", description="Election market", rules="Standard rules"),
-        _market("m2", question="Will Candidate A win?", description="Election market", rules="Standard rules"),
+        _market("m1", question="Will Candidate A win?", description="Election market"),
+        _market("m2", question="Will Candidate A win?", description="Election market"),
     ]
 
     assigned = DefaultTopicAssigner(embedding_provider=provider).assign_topics(markets, config)
 
     assert len(seen_requests) == 2
     assert [request["body"]["input"] for request in seen_requests] == [
-        ["Will Candidate A win?\nElection market\nStandard rules"],
-        ["Will Candidate A win?\nElection market\nStandard rules"],
+        ["Will Candidate A win?\nElection market"],
+        ["Will Candidate A win?\nElection market"],
     ]
     assert assigned[0].topic == assigned[1].topic == "topic-01"
 
@@ -320,16 +318,16 @@ def test_build_embedding_provider_rejects_bad_payload_without_retry(
 
 def test_embedding_topic_assigner_clusters_by_embedding_text_and_batches(tmp_path: Path) -> None:
     markets = [
-        _market("m1", question="Will Candidate A win?", description="Election market", rules="Standard rules"),
-        _market("m2", question="Will Candidate A win?", description="Election market", rules="Standard rules"),
-        _market("m3", question="Will the Fed cut rates?", description="Macro market", rules="Standard rules"),
-        _market("m4", question="Will the Fed cut rates?", description="Macro market", rules="Standard rules"),
-        _market("m5", question="Will the exhibit sell out?", description="Event market", rules="Standard rules", topic="event"),
+        _market("m1", question="Will Candidate A win?", description="Election market"),
+        _market("m2", question="Will Candidate A win?", description="Election market"),
+        _market("m3", question="Will the Fed cut rates?", description="Macro market"),
+        _market("m4", question="Will the Fed cut rates?", description="Macro market"),
+        _market("m5", question="Will the exhibit sell out?", description="Event market", topic="event"),
     ]
     vectors_by_text = {
-        "Will Candidate A win?\nElection market\nStandard rules": [1.0, 0.0, 0.0],
-        "Will the Fed cut rates?\nMacro market\nStandard rules": [0.0, 1.0, 0.0],
-        "Will the exhibit sell out?\nEvent market\nStandard rules": [0.0, 0.0, 1.0],
+        "Will Candidate A win?\nElection market": [1.0, 0.0, 0.0],
+        "Will the Fed cut rates?\nMacro market": [0.0, 1.0, 0.0],
+        "Will the exhibit sell out?\nEvent market": [0.0, 0.0, 1.0],
     }
     provider = _MappingEmbeddingProvider(vectors_by_text)
     config = _config(
@@ -344,15 +342,15 @@ def test_embedding_topic_assigner_clusters_by_embedding_text_and_batches(tmp_pat
 
     assert provider.calls == [
         [
-            "Will Candidate A win?\nElection market\nStandard rules",
-            "Will Candidate A win?\nElection market\nStandard rules",
+            "Will Candidate A win?\nElection market",
+            "Will Candidate A win?\nElection market",
         ],
         [
-            "Will the Fed cut rates?\nMacro market\nStandard rules",
-            "Will the Fed cut rates?\nMacro market\nStandard rules",
+            "Will the Fed cut rates?\nMacro market",
+            "Will the Fed cut rates?\nMacro market",
         ],
         [
-            "Will the exhibit sell out?\nEvent market\nStandard rules",
+            "Will the exhibit sell out?\nEvent market",
         ],
     ]
     assert topics["m1"] == topics["m2"]
@@ -365,21 +363,21 @@ def test_embedding_topic_assigner_clusters_by_embedding_text_and_batches(tmp_pat
 
 def test_embedding_topic_labels_are_stable_for_the_same_cluster_set(tmp_path: Path) -> None:
     markets = [
-        _market("m1", question="Will Candidate A win?", description="Election market", rules="Standard rules"),
-        _market("m2", question="Will Candidate A win?", description="Election market", rules="Standard rules"),
-        _market("m3", question="Will the Fed cut rates?", description="Macro market", rules="Standard rules"),
-        _market("m4", question="Will the Fed cut rates?", description="Macro market", rules="Standard rules"),
+        _market("m1", question="Will Candidate A win?", description="Election market"),
+        _market("m2", question="Will Candidate A win?", description="Election market"),
+        _market("m3", question="Will the Fed cut rates?", description="Macro market"),
+        _market("m4", question="Will the Fed cut rates?", description="Macro market"),
     ]
     provider_a = _MappingEmbeddingProvider(
         {
-            "Will Candidate A win?\nElection market\nStandard rules": [1.0, 0.0],
-            "Will the Fed cut rates?\nMacro market\nStandard rules": [0.0, 1.0],
+            "Will Candidate A win?\nElection market": [1.0, 0.0],
+            "Will the Fed cut rates?\nMacro market": [0.0, 1.0],
         },
     )
     provider_b = _MappingEmbeddingProvider(
         {
-            "Will Candidate A win?\nElection market\nStandard rules": [1.0, 0.0],
-            "Will the Fed cut rates?\nMacro market\nStandard rules": [0.0, 1.0],
+            "Will Candidate A win?\nElection market": [1.0, 0.0],
+            "Will the Fed cut rates?\nMacro market": [0.0, 1.0],
         },
     )
     config = _config(
@@ -457,3 +455,37 @@ def test_embedding_topic_assigner_raises_for_unsupported_provider(tmp_path: Path
 
     with pytest.raises(ValueError, match="Unsupported embedding provider"):
         DefaultTopicAssigner().assign_topics(markets, config)
+
+
+def test_build_embedding_text_uses_question_and_description_only() -> None:
+    """_build_embedding_text must produce question + description only.
+    """
+    market = _market(
+        "m1",
+        question="Will Candidate A win?",
+        description="Election market: resolves YES if Candidate A wins the 2026 election.",
+    )
+
+    text = DefaultTopicAssigner._build_embedding_text(market)
+
+    assert text == "Will Candidate A win?\nElection market: resolves YES if Candidate A wins the 2026 election.", (
+        "Embedding text must be question + description only"
+    )
+    # No duplicate content — description appears exactly once
+    parts = text.split("\n")
+    assert len(parts) == len(set(parts)), "Embedding text must not contain duplicate lines"
+
+
+def test_build_embedding_text_works_when_description_is_empty() -> None:
+    """Markets with no description must still produce a valid embedding text
+    (question only, no crash, no trailing newline).
+    """
+    market = _market(
+        "m1",
+        question="Will X happen?",
+        description="",
+    )
+
+    text = DefaultTopicAssigner._build_embedding_text(market)
+
+    assert text == "Will X happen?"

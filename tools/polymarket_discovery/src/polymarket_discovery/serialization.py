@@ -94,7 +94,7 @@ def _validate_fallback(payload: dict[str, Any]) -> None:
             raise OutputValidationError(f"markets[{index}] must be an object")
         _require_keys(
             market,
-            ["market_id", "condition_id", "question", "description", "rules", "end_date", "topic", "token_ids"],
+            ["market_id", "condition_id", "question", "description", "end_date", "topic", "token_ids"],
             f"markets[{index}]",
         )
         if not isinstance(market.get("token_ids"), list) or not market["token_ids"]:

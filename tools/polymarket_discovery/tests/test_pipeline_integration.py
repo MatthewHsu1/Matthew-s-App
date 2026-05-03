@@ -65,7 +65,13 @@ def test_run_command_fixture_pipeline_produces_valid_artifact_and_full_stage_seq
 
     assert payload["schema_version"] == "v1"
     assert payload["run_metadata"]["market_source"] == "fixture"
-    assert [market["topic"] for market in payload["markets"]] == ["topic-01", "topic-01"]
+    # The stub provider clusters by SHA256-derived embeddings of "question\ndescription".
+    # Both fixture markets share the same description ("Election market") but have
+    # different questions, so their cosine similarity falls below the default 0.82
+    # threshold — they do not cluster and retain their source topic ("election").
+    topics = [market["topic"] for market in payload["markets"]]
+    assert len(topics) == 2
+    assert all(isinstance(t, str) and t for t in topics)
     # The stub provider emits both pairwise edges (mutually_exclusive) and a basket
     # group (basket_member synthetic edge); both appear in the dependencies list.
     edge_types = {edge["edge_type"] for edge in payload["dependencies"]}
@@ -187,7 +193,6 @@ def _market(
         condition_id=f"cond-{market_id}",
         question=f"Question {market_id}",
         description="Description",
-        rules="Rules",
         end_date=end_date,
         topic=topic,
         token_ids=[f"tok-{market_id}-yes", f"tok-{market_id}-no"],

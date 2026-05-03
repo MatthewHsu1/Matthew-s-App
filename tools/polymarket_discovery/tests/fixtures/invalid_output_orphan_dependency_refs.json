@@ -14,7 +14,6 @@
       "condition_id": "cond-1",
       "question": "Will Candidate A win?",
       "description": "Election market",
-      "rules": "Standard rules",
       "end_date": "2026-11-03T23:59:59Z",
       "topic": "election-2026",
       "token_ids": ["tok-a-yes", "tok-a-no"]
@@ -24,7 +23,6 @@
       "condition_id": "cond-2",
       "question": "Will Candidate B win?",
       "description": "Election market",
-      "rules": "Standard rules",
       "end_date": "2026-11-03",
       "topic": "election-2026",
       "token_ids": ["tok-b-yes", "tok-b-no"]

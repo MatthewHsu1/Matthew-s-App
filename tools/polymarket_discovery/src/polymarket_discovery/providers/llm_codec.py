@@ -65,7 +65,6 @@ def build_dependency_prompt(left_market: MarketDescriptor, right_market: MarketD
                 "market_id": left_market.market_id,
                 "question": left_market.question,
                 "description": left_market.description,
-                "rules": left_market.rules,
                 "end_date": left_market.end_date,
                 "topic": left_market.topic,
             },
@@ -73,7 +72,6 @@ def build_dependency_prompt(left_market: MarketDescriptor, right_market: MarketD
                 "market_id": right_market.market_id,
                 "question": right_market.question,
                 "description": right_market.description,
-                "rules": right_market.rules,
                 "end_date": right_market.end_date,
                 "topic": right_market.topic,
             },
@@ -98,7 +96,6 @@ def build_basket_prompt(markets: Sequence[MarketDescriptor]) -> str:
             "market_id": m.market_id,
             "question": m.question,
             "description": m.description,
-            "rules": m.rules,
             "end_date": m.end_date,
             "topic": m.topic,
         }

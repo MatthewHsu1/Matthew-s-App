@@ -204,7 +204,11 @@ class PolymarketMarketSource(MarketSource):
             return None
 
         description = self._string_field(raw_market, "description", "subtitle")
-        rules = self._string_field(raw_market, "resolutionSource")
+        
+        # `resolutionSource` is a short attribution label (e.g. "Official results",
+        # a bare URL) that identifies who/what decides resolution.  It is preserved
+        # for downstream signal but kept out of the embedding/LLM-prompt pipeline.
+        resolution_source = self._string_field(raw_market, "resolutionSource", "resolution_source")
         topic = self._string_field(raw_market, "category", "subcategory")
         if not topic:
             topic = "unassigned"
@@ -214,10 +218,10 @@ class PolymarketMarketSource(MarketSource):
             condition_id=condition_id,
             question=question,
             description=description,
-            rules=rules,
             end_date=end_date,
             topic=topic,
             token_ids=token_ids,
+            resolution_source=resolution_source,
         )
 
     def _normalize_clob_market(self, raw_market: Any) -> _NormalizedCLOBMarket | None:
