@@ -13,7 +13,7 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from polymarket_discovery.components import FixtureMarketSource
+from polymarket_discovery.components import FixtureMarketSource, build_components
 from polymarket_discovery.config import DiscoveryConfig
 from polymarket_discovery.sources.polymarket import PolymarketMarketSource
 
@@ -562,3 +562,92 @@ def test_normalizer_resolution_source_empty_when_absent(
     assert len(markets) == 1
     assert markets[0].description == "", "description must be empty string when no description is present"
     assert markets[0].resolution_source == "FBI website", "resolution_source must be populated from resolutionSource"
+
+
+# ---------------------------------------------------------------------------
+# Fail-loud: build_components must not silently fall back to fixture data
+# ---------------------------------------------------------------------------
+
+def test_build_components_raises_when_config_is_none() -> None:
+    """build_components(None) must not silently return a fixture-backed pipeline."""
+    with pytest.raises(ValueError, match="No market source configured"):
+        build_components(None)
+
+
+def test_build_components_raises_when_market_source_is_empty(tmp_path: Path) -> None:
+    """A DiscoveryConfig whose market_source was cleared to an empty string must
+    also fail loudly.  The 'fixture' value must be an explicit opt-in, not the
+    result of an accidental empty field.
+    """
+    # DiscoveryConfig enforces non-empty embedding_provider but not market_source at
+    # construction time (market_source has a live default).  We bypass that by using
+    # object.__setattr__ on the frozen dataclass so we can test the factory guard.
+    config = DiscoveryConfig(
+        output_root=tmp_path / "artifacts",
+        market_source="polymarket-api",
+        embedding_provider="stub",
+    )
+    object.__setattr__(config, "market_source", "")
+    with pytest.raises(ValueError, match="No market source configured"):
+        build_components(config)
+
+
+# ---------------------------------------------------------------------------
+# Provenance: run_metadata.market_source must reflect the explicit opt-in
+# ---------------------------------------------------------------------------
+
+def test_run_artifact_records_fixture_market_source_when_explicitly_configured(
+    tmp_path: Path,
+) -> None:
+    """A full pipeline run with market_source='fixture' must record 'fixture' in
+    run_metadata.market_source of the output artifact.  This proves the provenance
+    field is stamped from config, not hardcoded.
+    """
+    import json
+    from polymarket_discovery.cli import run_command
+
+    config_payload = {
+        "output_root": str(tmp_path / "artifacts"),
+        "artifact_subdir": "runs",
+        "market_source": "fixture",
+        "embedding_provider": "stub",
+        "embedding_model": "stub-embed-v1",
+        "llm_model": "deepseek-stub-v1",
+        "params": {
+            "markets": [
+                {
+                    "market_id": "p1",
+                    "condition_id": "cond-p1",
+                    "question": "Will A win?",
+                    "description": "Test",
+                    "end_date": "2026-11-03",
+                    "topic": "election",
+                    "token_ids": ["tok-p1-yes", "tok-p1-no"],
+                },
+                {
+                    "market_id": "p2",
+                    "condition_id": "cond-p2",
+                    "question": "Will B win?",
+                    "description": "Test",
+                    "end_date": "2026-11-03",
+                    "topic": "election",
+                    "token_ids": ["tok-p2-yes", "tok-p2-no"],
+                },
+            ],
+        },
+    }
+    config_path = tmp_path / "config.json"
+    config_path.write_text(json.dumps(config_payload), encoding="utf-8")
+
+    exit_code = run_command(config_path)
+    assert exit_code == 0
+
+    run_root = tmp_path / "artifacts" / "runs"
+    run_dirs = sorted(p for p in run_root.iterdir() if p.is_dir())
+    assert len(run_dirs) == 1
+
+    payload = json.loads((run_dirs[0] / "baskets.json").read_text(encoding="utf-8"))
+    assert payload["run_metadata"]["market_source"] == "fixture", (
+        "Artifact must record market_source='fixture' for fixture runs so Phase 2 "
+        "consumers can filter them out."
+    )

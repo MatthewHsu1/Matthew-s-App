@@ -139,7 +139,7 @@ def write_run_artifact(result: PipelineRunResult, output_path: str) -> None:
         handle.write("\n")
 
 
-def build_default_components(config: DiscoveryConfig | None = None) -> PipelineComponents:
+def build_default_components(config: DiscoveryConfig) -> PipelineComponents:
     from .components import build_components
 
     components = build_components(config)

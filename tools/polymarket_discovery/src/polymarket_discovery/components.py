@@ -52,7 +52,23 @@ class FixtureMarketSource(MarketSource):
 
 
 def _select_market_source(config: DiscoveryConfig | None = None) -> MarketSource:
-    source_name = (config.market_source if config is not None else "fixture").strip().lower()
+    if config is None:
+        raise ValueError(
+            "No market source configured. "
+            "Pass a DiscoveryConfig with an explicit 'market_source' value. "
+            "Use 'fixture' for local testing or 'polymarket-api' for live data. "
+            "Running without a configured market source would silently use synthetic fixture data."
+        )
+    
+    source_name = config.market_source.strip().lower()
+    if not source_name:
+        raise ValueError(
+            "No market source configured. "
+            "Set 'market_source' in your config (e.g. 'polymarket-api' for live data). "
+            "Use 'fixture' explicitly for local testing. "
+            "Running without a configured market source would silently use synthetic fixture data."
+        )
+    
     if source_name in {"fixture", "fixtures"}:
         return FixtureMarketSource()
     if source_name in {"polymarket", "polymarket-api", "real"}:
@@ -60,7 +76,7 @@ def _select_market_source(config: DiscoveryConfig | None = None) -> MarketSource
     raise ValueError(f"Unsupported market source: {source_name}")
 
 
-def build_components(config: DiscoveryConfig | None = None) -> PipelineComponents:
+def build_components(config: DiscoveryConfig) -> PipelineComponents:
     return PipelineComponents(
         market_source=_select_market_source(config),
         topic_assigner=DefaultTopicAssigner(),
