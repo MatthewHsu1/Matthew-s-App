@@ -19,6 +19,21 @@ from .serialization import to_output_json, validate_output_document
 logger = logging.getLogger(__name__)
 
 
+def _run_stage(name: str, *, enabled: bool, default, fn):
+    """Run a pipeline stage if enabled, otherwise skip it.
+
+    When *enabled* is True the stage context manager is used so that
+    stage_started and stage_completed records are emitted automatically.
+    When *enabled* is False a single stage_skipped record is logged and
+    *default* is returned without calling *fn*.
+    """
+    if enabled:
+        with stage(name):
+            return fn()
+    logger.info("stage_skipped", extra={"stage": name, "reason": "disabled_in_config"})
+    return default
+
+
 @dataclass(slots=True)
 class PipelineComponents:
     market_source: MarketSource
@@ -51,26 +66,26 @@ def run_pipeline(
     with stage("market_source"):
         markets = components.market_source.fetch_active_markets(config)
 
-    if _is_enabled("topic_assigner"):
-        with stage("topic_assigner"):
-            markets_with_topics = components.topic_assigner.assign_topics(markets, config)
-    else:
-        logger.info("stage_skipped", extra={"stage": "topic_assigner", "reason": "disabled_in_config"})
-        markets_with_topics = list(markets)
+    markets_with_topics = _run_stage(
+        "topic_assigner",
+        enabled=_is_enabled("topic_assigner"),
+        default=list(markets),
+        fn=lambda: components.topic_assigner.assign_topics(markets, config),
+    )
 
-    if _is_enabled("candidate_reducer"):
-        with stage("candidate_reducer"):
-            candidates = components.candidate_reducer.reduce(markets_with_topics, config)
-    else:
-        logger.info("stage_skipped", extra={"stage": "candidate_reducer", "reason": "disabled_in_config"})
-        candidates = []
+    candidates = _run_stage(
+        "candidate_reducer",
+        enabled=_is_enabled("candidate_reducer"),
+        default=[],
+        fn=lambda: components.candidate_reducer.reduce(markets_with_topics, config),
+    )
 
-    if _is_enabled("dependency_inferencer"):
-        with stage("dependency_inferencer"):
-            dependencies = components.dependency_inferencer.infer_dependencies(candidates, config)
-    else:
-        logger.info("stage_skipped", extra={"stage": "dependency_inferencer", "reason": "disabled_in_config"})
-        dependencies = []
+    dependencies = _run_stage(
+        "dependency_inferencer",
+        enabled=_is_enabled("dependency_inferencer"),
+        default=[],
+        fn=lambda: components.dependency_inferencer.infer_dependencies(candidates, config),
+    )
 
     # Basket-structure inference: ask the LLM provider to identify N-way
     # groupings per (topic, canonical_end_date) bucket before passing control
@@ -98,22 +113,23 @@ def run_pipeline(
                     components.dependency_inferencer.infer_basket_groups(topic_group, config)
                 )
 
-    if _is_enabled("basket_builder"):
-        with stage("basket_builder"):
-            baskets, synthetic_edges = components.basket_builder.build(
-                markets_with_topics, dependencies, config, basket_groups=basket_groups
-            )
-    else:
-        logger.info("stage_skipped", extra={"stage": "basket_builder", "reason": "disabled_in_config"})
-        baskets, synthetic_edges = [], []
+    baskets, synthetic_edges = _run_stage(
+        "basket_builder",
+        enabled=_is_enabled("basket_builder"),
+        default=([], []),
+        fn=lambda: components.basket_builder.build(
+            markets_with_topics, dependencies, config, basket_groups=basket_groups
+        ),
+    )
 
     all_dependencies = list(dependencies) + synthetic_edges
 
-    if _is_enabled("basket_validator"):
-        with stage("basket_validator"):
-            components.basket_validator.validate(baskets, config)
-    else:
-        logger.info("stage_skipped", extra={"stage": "basket_validator", "reason": "disabled_in_config"})
+    _run_stage(
+        "basket_validator",
+        enabled=_is_enabled("basket_validator"),
+        default=None,
+        fn=lambda: components.basket_validator.validate(baskets, config),
+    )
 
     run_metadata = RunMetadata(
         run_id=run_id,
