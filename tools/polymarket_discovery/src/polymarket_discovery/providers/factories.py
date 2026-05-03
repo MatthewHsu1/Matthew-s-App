@@ -16,9 +16,17 @@ from .settings import (
 
 
 def build_embedding_provider(config: Any | None = None) -> EmbeddingProvider:
-    """Build the configured embedding provider."""
+    """Build the configured embedding provider.
+    """
     settings = resolve_embedding_settings(config)
-    if settings.provider_name in {"stub", "deterministic", "hash", "default"}:
+    if not settings.provider_name:
+        raise ValueError(
+            "No embedding provider configured. "
+            "Set 'embedding_provider' in your config (e.g. 'tei' with a 'base_url') "
+            "or use 'stub' explicitly for local testing. "
+            "Running without a configured provider would produce semantically random clusters."
+        )
+    if settings.provider_name in {"stub", "deterministic", "hash"}:
         return StubEmbeddingProvider(model_name=settings.model_name, dimensions=settings.dimensions)
     if settings.provider_name in {"tei", "openai-compatible", "openai_compatible", "openai", "http"}:
         return HTTPEmbeddingProvider(settings=settings)
@@ -27,7 +35,7 @@ def build_embedding_provider(config: Any | None = None) -> EmbeddingProvider:
 
 def build_llm_provider(config: Any | None = None) -> LLMProvider:
     settings = resolve_llm_settings(config)
-    if settings.provider_name in {"stub", "deterministic", "default"}:
+    if settings.provider_name in {"stub", "deterministic"}:
         return DeepSeekLLMProviderStub(model_name=settings.model_name)
     if settings.provider_name in {"deepseek", "openai-compatible", "openai_compatible", "vllm_openai", "vllm-openai", "vllm", "http"}:
         return OpenAICompatibleLLMProvider(settings=settings)

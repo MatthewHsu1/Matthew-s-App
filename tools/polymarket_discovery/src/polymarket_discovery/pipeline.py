@@ -117,13 +117,16 @@ def run_pipeline(
         market_source=config.market_source,
         embedding_model=config.embedding_model,
         llm_model=config.llm_model,
+        embedding_provider=config.embedding_provider,
     )
+
     document = ArbitrageOutputDocument(
         run_metadata=run_metadata,
         markets=list(markets_with_topics),
         dependencies=all_dependencies,
         baskets=list(baskets),
     )
+    
     validate_output_document(document)
 
     return PipelineRunResult(document=document)

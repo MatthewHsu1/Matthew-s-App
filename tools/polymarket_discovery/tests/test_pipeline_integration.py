@@ -262,7 +262,7 @@ class _NoopBasketValidator:
 
 
 def test_run_pipeline_rejects_invalid_basket_at_final_schema_gate(tmp_path: Path) -> None:
-    config = DiscoveryConfig(output_root=tmp_path / "artifacts")
+    config = DiscoveryConfig(output_root=tmp_path / "artifacts", embedding_provider="stub")
     stage_logger = JsonlStageLogger(path=tmp_path / "stages.jsonl", run_id="run-test")
     components = PipelineComponents(
         market_source=_StaticMarketSource(),

@@ -8,4 +8,5 @@ class RunMetadata:
     market_source: str
     embedding_model: str
     llm_model: str
+    embedding_provider: str = "stub"
     schema_version: SchemaVersion = "v1"

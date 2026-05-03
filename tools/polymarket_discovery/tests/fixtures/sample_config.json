@@ -2,6 +2,7 @@
   "output_root": "tmp/polymarket_discovery",
   "artifact_subdir": "runs",
   "market_source": "fixture",
+  "embedding_provider": "stub",
   "embedding_model": "stub-embed-v1",
   "llm_model": "deepseek-stub-v1",
   "params": {

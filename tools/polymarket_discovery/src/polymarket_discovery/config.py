@@ -24,11 +24,18 @@ class DiscoveryConfig:
     output_root: Path
     artifact_subdir: str = "runs"
     market_source: str = "polymarket-api"
-    embedding_provider: str = "stub"
+    embedding_provider: str = ""
     embedding_model: str = "linq-embed-mistral-stub"
     llm_model: str = "deepseek-stub"
     stages: tuple[str, ...] = DEFAULT_STAGES
     params: dict[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        if not self.embedding_provider:
+            raise ValueError(
+                "DiscoveryConfig requires an explicit 'embedding_provider'. "
+                "Use 'stub' for local testing or a real provider name (e.g. 'tei') for production."
+            )
 
     @property
     def artifact_root(self) -> Path:
@@ -72,11 +79,25 @@ def load_config(config_path: str | Path) -> DiscoveryConfig:
     if not isinstance(params, dict):
         raise ValueError("Config field 'params' must be an object when provided.")
 
+    raw_embedding_provider = raw.get("embedding_provider")
+    if raw_embedding_provider is None:
+        raise ValueError(
+            "Config field 'embedding_provider' is required and must be a non-empty string. "
+            "Use 'stub' for local testing or a real provider name (e.g. 'tei') for production."
+        )
+    
+    embedding_provider = str(raw_embedding_provider)
+    if not embedding_provider.strip():
+        raise ValueError(
+            "Config field 'embedding_provider' is required and must be a non-empty string. "
+            "Use 'stub' for local testing or a real provider name (e.g. 'tei') for production."
+        )
+
     return DiscoveryConfig(
         output_root=Path(output_root_value),
         artifact_subdir=artifact_subdir,
         market_source=str(raw.get("market_source", "polymarket-api")),
-        embedding_provider=str(raw.get("embedding_provider", "stub")),
+        embedding_provider=embedding_provider,
         embedding_model=str(raw.get("embedding_model", "linq-embed-mistral-stub")),
         llm_model=str(raw.get("llm_model", "deepseek-stub")),
         stages=tuple(raw_stages),

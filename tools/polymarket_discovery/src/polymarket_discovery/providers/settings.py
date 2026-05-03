@@ -71,7 +71,7 @@ def resolve_embedding_settings(config: Any | None = None) -> EmbeddingProviderSe
         retry_params = {}
 
     settings = EmbeddingProviderSettings(
-        provider_name=(explicit_provider_name.lower() if explicit_provider_name else ("tei" if base_url else "stub")),
+        provider_name=(explicit_provider_name.lower() if explicit_provider_name else ("tei" if base_url else "")),
         model_name=coerce_str(model_name, "stub-embed"),
         dimensions=coerce_int(
             embedding_params.get("embedding_dimensions", params.get("embedding_dimensions")),

@@ -36,6 +36,7 @@ def _config(tmp_path: Path, **params: object) -> DiscoveryConfig:
     return DiscoveryConfig(
         output_root=tmp_path / "artifacts",
         market_source="polymarket-api",
+        embedding_provider="stub",
         params=dict(params),
     )
 
