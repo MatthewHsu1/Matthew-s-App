@@ -11,6 +11,7 @@ from collections import defaultdict
 from ..contracts import MarketDescriptor
 from ..interfaces.topic_assigner import TopicAssigner
 from ..providers.factories import build_embedding_provider
+from ..utils.coercion import coerce_float, coerce_int, coerce_str
 
 
 def canonicalize_end_date(value: str) -> str:
@@ -128,7 +129,7 @@ class DefaultTopicAssigner(TopicAssigner):
         )
         
         return _TopicAssignerSettings(
-            embedding_provider=self._coerce_str(
+            embedding_provider=coerce_str(
                 self._first_str(
                     (
                         embeddings_params,
@@ -142,7 +143,7 @@ class DefaultTopicAssigner(TopicAssigner):
                 ),
                 str(embedding_provider),
             ),
-            embedding_model=self._coerce_str(
+            embedding_model=coerce_str(
                 self._first_str(
                     (
                         embeddings_params,
@@ -155,7 +156,7 @@ class DefaultTopicAssigner(TopicAssigner):
                 ),
                 str(embedding_model),
             ),
-            embedding_batch_size=self._coerce_int(
+            embedding_batch_size=coerce_int(
                 self._first_int(
                     (
                         topic_assigner_params,
@@ -168,7 +169,7 @@ class DefaultTopicAssigner(TopicAssigner):
                 ),
                 16,
             ),
-            cluster_threshold=self._coerce_float(
+            cluster_threshold=coerce_float(
                 self._first_float(
                     (
                         topic_assigner_params,
@@ -181,7 +182,7 @@ class DefaultTopicAssigner(TopicAssigner):
                 ),
                 0.82,
             ),
-            min_cluster_size=self._coerce_int(
+            min_cluster_size=coerce_int(
                 self._first_int(
                     (
                         topic_assigner_params,
@@ -327,30 +328,6 @@ class DefaultTopicAssigner(TopicAssigner):
             left_value * right_value for left_value, right_value in zip(left, right)
         )
 
-    @staticmethod
-    def _coerce_int(value: Any, default: int) -> int:
-        try:
-            if value is None:
-                return default
-            return int(value)
-        except (TypeError, ValueError):
-            return default
-
-    @staticmethod
-    def _coerce_float(value: Any, default: float) -> float:
-        try:
-            if value is None:
-                return default
-            return float(value)
-        except (TypeError, ValueError):
-            return default
-
-    @staticmethod
-    def _coerce_str(value: Any, default: str) -> str:
-        if isinstance(value, str):
-            cleaned = value.strip()
-            return cleaned or default
-        return default
 
     @staticmethod
     def _first_str(sources: Sequence[Any], *keys: str) -> Any:

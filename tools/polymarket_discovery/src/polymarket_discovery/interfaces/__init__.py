@@ -3,6 +3,7 @@ from .basket_validator import BasketValidator
 from .candidate_reducer import CandidateReducer
 from .dependency_inferencer import DependencyInferencer
 from .embedding_provider import EmbeddingProvider
+from .llm_basket_group import LLMBasketGroup
 from .llm_dependency_prediction import LLMDependencyPrediction
 from .llm_provider import LLMProvider
 from .market_pair import MarketPair
@@ -15,6 +16,7 @@ __all__ = [
     "CandidateReducer",
     "DependencyInferencer",
     "EmbeddingProvider",
+    "LLMBasketGroup",
     "LLMDependencyPrediction",
     "LLMProvider",
     "MarketPair",

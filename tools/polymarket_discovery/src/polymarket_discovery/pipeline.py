@@ -68,12 +68,42 @@ def run_pipeline(
         stage_logger.log(event="stage_skipped", stage="dependency_inferencer", reason="disabled_in_config")
         dependencies = []
 
+    # Basket-structure inference: ask the LLM provider to identify N-way
+    # groupings per (topic, canonical_end_date) bucket before passing control
+    # to the basket builder.  Bucketing by end date is required so the LLM
+    # never sees markets that resolve at different times in the same group —
+    # those cannot satisfy the convergence-to-1.00 invariant.
+    from .stages.dependency_inferencer import LLMDependencyInferencer
+    from .interfaces.llm_basket_group import LLMBasketGroup
+    from .stages.topic_assigner import canonicalize_end_date
+    from collections import defaultdict
+
+    basket_groups: list[LLMBasketGroup] = []
+    if _is_enabled("dependency_inferencer") and isinstance(
+        components.dependency_inferencer, LLMDependencyInferencer
+    ):
+        topic_end_date_buckets: dict[tuple[str, str], list] = defaultdict(list)
+        for market in markets_with_topics:
+            topic_key = (market.topic or "").strip().lower()
+            end_date_key = canonicalize_end_date(market.end_date)
+            if topic_key and end_date_key:
+                topic_end_date_buckets[(topic_key, end_date_key)].append(market)
+        for topic_group in topic_end_date_buckets.values():
+            if len(topic_group) >= 2:
+                basket_groups.extend(
+                    components.dependency_inferencer.infer_basket_groups(topic_group, config)
+                )
+
     if _is_enabled("basket_builder"):
         with stage_logger.stage("basket_builder"):
-            baskets = components.basket_builder.build(markets_with_topics, dependencies, config)
+            baskets, synthetic_edges = components.basket_builder.build(
+                markets_with_topics, dependencies, config, basket_groups=basket_groups
+            )
     else:
         stage_logger.log(event="stage_skipped", stage="basket_builder", reason="disabled_in_config")
-        baskets = []
+        baskets, synthetic_edges = [], []
+
+    all_dependencies = list(dependencies) + synthetic_edges
 
     if _is_enabled("basket_validator"):
         with stage_logger.stage("basket_validator"):
@@ -91,7 +121,7 @@ def run_pipeline(
     document = ArbitrageOutputDocument(
         run_metadata=run_metadata,
         markets=list(markets_with_topics),
-        dependencies=list(dependencies),
+        dependencies=all_dependencies,
         baskets=list(baskets),
     )
     validate_output_document(document)

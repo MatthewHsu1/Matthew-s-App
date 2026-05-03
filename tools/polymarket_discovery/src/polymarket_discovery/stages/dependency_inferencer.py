@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+from itertools import combinations
 from typing import Any, Sequence
 
-from ..contracts import DependencyEdge
+from ..contracts import DependencyEdge, MarketDescriptor
 from ..interfaces.dependency_inferencer import DependencyInferencer
+from ..interfaces.llm_basket_group import LLMBasketGroup
 from ..interfaces.llm_provider import LLMProvider
 from ..interfaces.market_pair import MarketPair
 from ..providers.factories import build_llm_provider
@@ -39,8 +41,28 @@ class LLMDependencyInferencer(DependencyInferencer):
                     rationale=prediction.rationale,
                 ),
             )
-            
+
         return edges
+
+    def infer_basket_groups(
+        self,
+        markets: Sequence[MarketDescriptor],
+        config: Any | None = None,
+    ) -> list[LLMBasketGroup]:
+        """Ask the configured LLM provider to infer N-way basket groupings.
+
+        The *markets* sequence should be a single topic group (same topic and
+        end date) — typically the full set of markets returned by the topic
+        assigner for one cluster.  The provider's ``infer_basket_groups``
+        method is called once per topic group.
+
+        Returns ``[]`` when the provider does not support basket inference or
+        when fewer than two markets are provided.
+        """
+        provider = self._resolve_provider(config)
+        if len(markets) < 2:
+            return []
+        return provider.infer_basket_groups(markets)
 
     def _resolve_provider(self, config: Any | None) -> LLMProvider:
         if self._llm_provider is not None and not configures_llm_provider(config):

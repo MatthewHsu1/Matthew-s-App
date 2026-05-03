@@ -2,12 +2,19 @@ from __future__ import annotations
 
 import subprocess
 from dataclasses import dataclass, field
+from typing import Sequence
 
 from ..contracts import MarketDescriptor
 from ..interfaces.codex_invoker import CodexInvoker
+from ..interfaces.llm_basket_group import LLMBasketGroup
 from ..interfaces.llm_dependency_prediction import LLMDependencyPrediction
 from ..interfaces.llm_provider import LLMProvider
-from .llm_codec import build_dependency_prompt, parse_llm_dependency_prediction
+from .llm_codec import (
+    build_basket_prompt,
+    build_dependency_prompt,
+    parse_llm_basket_groups,
+    parse_llm_dependency_prediction,
+)
 from .settings import LLMProviderSettings
 
 
@@ -16,6 +23,17 @@ _SYSTEM_PREAMBLE = (
     "edge_type, confidence, rationale. edge_type must be one of "
     "mutually_exclusive, conditional, related. confidence must be a number from "
     "0 to 1. Do not wrap the JSON in code fences or include any other text."
+)
+
+_BASKET_SYSTEM_PREAMBLE = (
+    "You identify basket structure in prediction markets. "
+    "Given a list of markets that share a topic and end date, identify subsets "
+    "whose YES-token prices sum to 1.0 (complete outcome sets). "
+    'Reply with a single JSON object containing a "baskets" array. '
+    "Each element must have basket_id (string), market_ids (array of market_id strings), "
+    "and rationale (string). Only include markets that genuinely form a complete outcome set. "
+    'Return {"baskets": []} if no complete sets are found. '
+    "Do not wrap the JSON in code fences or include any other text."
 )
 
 
@@ -78,6 +96,20 @@ class CodexCliLLMProvider(LLMProvider):
         raw = self.invoker.run(full_prompt, timeout_seconds=self.settings.timeout_seconds)
         json_text = _extract_json_object(raw)
         return parse_llm_dependency_prediction(json_text)
+
+    def infer_basket_groups(
+        self,
+        markets: Sequence[MarketDescriptor],
+    ) -> list[LLMBasketGroup]:
+        """Ask the Codex CLI to identify N-way basket groupings for the topic group."""
+        if len(markets) < 2:
+            return []
+        known_ids = frozenset(m.market_id for m in markets)
+        user_prompt = build_basket_prompt(markets)
+        full_prompt = f"{_BASKET_SYSTEM_PREAMBLE}\n\n{user_prompt}"
+        raw = self.invoker.run(full_prompt, timeout_seconds=self.settings.timeout_seconds)
+        json_text = _extract_json_object(raw)
+        return parse_llm_basket_groups(json_text, known_market_ids=known_ids)
 
 
 @dataclass(slots=True)

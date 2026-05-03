@@ -66,8 +66,16 @@ def test_run_command_fixture_pipeline_produces_valid_artifact_and_full_stage_seq
     assert payload["schema_version"] == "v1"
     assert payload["run_metadata"]["market_source"] == "fixture"
     assert [market["topic"] for market in payload["markets"]] == ["topic-01", "topic-01"]
-    assert [edge["edge_type"] for edge in payload["dependencies"]] == ["mutually_exclusive"]
-    assert [basket["dependency_basis"] for basket in payload["baskets"]] == [["m1__m2"]]
+    # The stub provider emits both pairwise edges (mutually_exclusive) and a basket
+    # group (basket_member synthetic edge); both appear in the dependencies list.
+    edge_types = {edge["edge_type"] for edge in payload["dependencies"]}
+    assert "mutually_exclusive" in edge_types
+    assert len(payload["baskets"]) == 1
+    # Basket produced by the stub basket-group path references the synthetic chain edge.
+    assert all(
+        dep_id.startswith("basket-member__")
+        for dep_id in payload["baskets"][0]["dependency_basis"]
+    )
 
     stage_records = _read_stage_records(artifact_dir / "stages.jsonl")
     assert [(record["event"], record.get("stage")) for record in stage_records] == [
@@ -234,14 +242,18 @@ class _InvalidBasketBuilder:
         markets: list[MarketDescriptor],
         dependencies: list[DependencyEdge],
         config: object | None = None,
-    ) -> list[BasketItem]:
-        return [
-            BasketItem(
-                basket_id="basket-m1__m2",
-                token_ids=["tok-m1-yes", "tok-m2-yes"],
-                dependency_basis=["missing-edge"],
-            ),
-        ]
+        basket_groups: object = (),
+    ) -> tuple[list[BasketItem], list[DependencyEdge]]:
+        return (
+            [
+                BasketItem(
+                    basket_id="basket-m1__m2",
+                    token_ids=["tok-m1-yes", "tok-m2-yes"],
+                    dependency_basis=["missing-edge"],
+                ),
+            ],
+            [],
+        )
 
 
 class _NoopBasketValidator:

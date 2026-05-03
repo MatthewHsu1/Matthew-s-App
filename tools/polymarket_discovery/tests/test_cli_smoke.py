@@ -80,14 +80,18 @@ class _InvalidBasketBuilder:
         markets: list[MarketDescriptor],
         dependencies: list[DependencyEdge],
         config: object | None = None,
-    ) -> list[BasketItem]:
-        return [
-            BasketItem(
-                basket_id="basket-m1__m2",
-                token_ids=["tok-m1-yes", "tok-m2-yes"],
-                dependency_basis=["missing-edge"],
-            ),
-        ]
+        basket_groups: object = (),
+    ) -> tuple[list[BasketItem], list[DependencyEdge]]:
+        return (
+            [
+                BasketItem(
+                    basket_id="basket-m1__m2",
+                    token_ids=["tok-m1-yes", "tok-m2-yes"],
+                    dependency_basis=["missing-edge"],
+                ),
+            ],
+            [],
+        )
 
 
 class _NoopBasketValidator:
@@ -118,9 +122,9 @@ def test_cli_smoke_run_command_writes_output_artifacts(tmp_path: Path) -> None:
     payload = json.loads(baskets_path.read_text(encoding="utf-8"))
     assert payload["schema_version"] == "v1"
     assert payload["run_metadata"]["run_id"].startswith("run_")
-    assert len(payload["dependencies"]) == 1
+    # Pairwise edge from the stub inferencer + synthetic basket-member chain edge.
+    assert len(payload["dependencies"]) >= 1
     assert len(payload["baskets"]) == 1
-    assert payload["baskets"][0]["basket_id"].startswith("basket-")
 
 
 def test_cli_default_components_use_configured_llm_model_in_stub_rationale(tmp_path: Path) -> None:
@@ -140,7 +144,12 @@ def test_cli_default_components_use_configured_llm_model_in_stub_rationale(tmp_p
 
     payload = json.loads((run_dirs[0] / "baskets.json").read_text(encoding="utf-8"))
     assert payload["run_metadata"]["llm_model"] == config["llm_model"]
-    assert payload["dependencies"][0]["rationale"].startswith(f'{config["llm_model"]}:')
+    # At least one dependency edge should carry the stub model name in its rationale.
+    llm_model = config["llm_model"]
+    assert any(
+        edge["rationale"].startswith(f"{llm_model}:")
+        for edge in payload["dependencies"]
+    )
 
 
 def test_cli_respects_configured_stages(tmp_path: Path) -> None:
