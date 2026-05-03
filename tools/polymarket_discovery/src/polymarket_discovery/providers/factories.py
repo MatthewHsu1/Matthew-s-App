@@ -5,8 +5,14 @@ from typing import Any
 from ..interfaces.embedding_provider import EmbeddingProvider
 from ..interfaces.llm_provider import LLMProvider
 from .embeddings import HTTPEmbeddingProvider, StubEmbeddingProvider
-from .llm import DeepSeekLLMProviderStub, OpenAICompatibleLLMProvider
-from .settings import resolve_embedding_settings, resolve_llm_settings
+from .llm_codex import CodexCliLLMProvider, SubprocessCodexInvoker
+from .llm_openai import OpenAICompatibleLLMProvider
+from .llm_stub import DeepSeekLLMProviderStub
+from .settings import (
+    get_inferencer_params,
+    resolve_embedding_settings,
+    resolve_llm_settings,
+)
 
 
 def build_embedding_provider(config: Any | None = None) -> EmbeddingProvider:
@@ -25,7 +31,30 @@ def build_llm_provider(config: Any | None = None) -> LLMProvider:
         return DeepSeekLLMProviderStub(model_name=settings.model_name)
     if settings.provider_name in {"deepseek", "openai-compatible", "openai_compatible", "vllm_openai", "vllm-openai", "vllm", "http"}:
         return OpenAICompatibleLLMProvider(settings=settings)
+    if settings.provider_name == "codex":
+        return CodexCliLLMProvider(
+            settings=settings,
+            invoker=_build_subprocess_codex_invoker(config),
+        )
     raise ValueError(f"Unsupported llm provider: {settings.provider_name}")
+
+
+def _build_subprocess_codex_invoker(config: Any | None) -> SubprocessCodexInvoker:
+    inferencer_params = get_inferencer_params(config)
+    binary = inferencer_params.get("codex_binary", "codex")
+    raw_args = inferencer_params.get("codex_args", ("exec",))
+    use_json_flag = inferencer_params.get("codex_use_json_flag", True)
+
+    if isinstance(raw_args, (list, tuple)):
+        base_args = tuple(str(arg) for arg in raw_args)
+    else:
+        base_args = ("exec",)
+
+    return SubprocessCodexInvoker(
+        binary=str(binary),
+        base_args=base_args,
+        use_json_flag=bool(use_json_flag),
+    )
 
 
 def configures_llm_provider(config: Any | None = None) -> bool:

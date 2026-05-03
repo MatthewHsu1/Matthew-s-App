@@ -8,7 +8,7 @@ from ..interfaces.llm_provider import LLMProvider
 from ..interfaces.market_pair import MarketPair
 from ..providers.factories import build_llm_provider
 from ..providers.factories import configures_llm_provider
-from ..providers.llm import validate_llm_dependency_prediction
+from ..providers.llm_openai import validate_llm_dependency_prediction
 
 
 class LLMDependencyInferencer(DependencyInferencer):

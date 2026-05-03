@@ -125,17 +125,26 @@ def resolve_embedding_settings(config: Any | None = None) -> EmbeddingProviderSe
     return settings
 
 
+def get_inferencer_params(config: Any | None = None) -> dict[str, Any]:
+    params = getattr(config, "params", {}) if config is not None else {}
+    if not isinstance(params, dict):
+        return {}
+    for key in ("dependency_inferencer", "llm"):
+        candidate = params.get(key)
+        if isinstance(candidate, dict):
+            return candidate
+    return {}
+
+
+_CODEX_PROVIDER_ALIASES = frozenset({"codex", "codex_cli", "codex-cli"})
+
+
 def resolve_llm_settings(config: Any | None = None) -> LLMProviderSettings:
     params = getattr(config, "params", {}) if config is not None else {}
     if not isinstance(params, dict):
         params = {}
 
-    inferencer_params: dict[str, Any] = {}
-    for key in ("dependency_inferencer", "llm"):
-        candidate = params.get(key)
-        if isinstance(candidate, dict):
-            inferencer_params = candidate
-            break
+    inferencer_params = get_inferencer_params(config)
 
     retry_params = inferencer_params.get("retry")
     if not isinstance(retry_params, dict):
@@ -175,6 +184,9 @@ def resolve_llm_settings(config: Any | None = None) -> LLMProviderSettings:
         normalized_provider_name = "deepseek"
     else:
         normalized_provider_name = "stub"
+
+    if normalized_provider_name in _CODEX_PROVIDER_ALIASES:
+        normalized_provider_name = "codex"
     normalized_model_name = coerce_str(model_name, "deepseek-stub")
 
     api_key = coerce_str(inferencer_params.get("api_key"), "")
