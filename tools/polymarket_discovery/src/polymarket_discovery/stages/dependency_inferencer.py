@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from itertools import combinations
 from typing import Any, Sequence
 
 from ..contracts import DependencyEdge, MarketDescriptor
@@ -10,7 +9,7 @@ from ..interfaces.llm_provider import LLMProvider
 from ..interfaces.market_pair import MarketPair
 from ..providers.factories import build_llm_provider
 from ..providers.factories import configures_llm_provider
-from ..providers.llm_codec import validate_llm_dependency_prediction
+from ..providers.llm_codec import DEFAULT_DEPENDENCY_BATCH_SIZE, validate_llm_dependency_prediction
 
 
 class LLMDependencyInferencer(DependencyInferencer):
@@ -23,26 +22,51 @@ class LLMDependencyInferencer(DependencyInferencer):
         config: Any | None = None,
     ) -> list[DependencyEdge]:
         provider = self._resolve_provider(config)
+        batch_size = self._resolve_batch_size(config)
+
+        pairs = list(market_pairs)
+        if not pairs:
+            return []
+
+        # Chunk pairs into batches; each chunk is ONE LLM call rather than N.
+        predictions = []
+        for chunk_start in range(0, len(pairs), batch_size):
+            chunk = pairs[chunk_start : chunk_start + batch_size]
+            chunk_predictions = provider.infer_dependencies_batched(chunk)
+            predictions.extend(chunk_predictions)
 
         edges: list[DependencyEdge] = []
-
-        for left, right in market_pairs:
-            prediction = validate_llm_dependency_prediction(
-                provider.infer_dependency(left, right)
-            )
-
+        for (left, right), prediction in zip(pairs, predictions):
+            validated = validate_llm_dependency_prediction(prediction)
             edges.append(
                 DependencyEdge(
                     edge_id=f"{left.market_id}__{right.market_id}",
-                    edge_type=prediction.edge_type,
+                    edge_type=validated.edge_type,
                     from_market_id=left.market_id,
                     to_market_id=right.market_id,
-                    confidence=prediction.confidence,
-                    rationale=prediction.rationale,
+                    confidence=validated.confidence,
+                    rationale=validated.rationale,
                 ),
             )
 
         return edges
+
+    @staticmethod
+    def _resolve_batch_size(config: Any | None) -> int:
+        """Read batch_size from config.params['dependency_inferencer']['batch_size'].
+
+        Falls back to :data:`DEFAULT_DEPENDENCY_BATCH_SIZE` (50) when not set.
+        """
+        try:
+            params = getattr(config, "params", {}) or {}
+            inferencer_params = params.get("dependency_inferencer", {})
+            if isinstance(inferencer_params, dict):
+                raw = inferencer_params.get("batch_size")
+                if isinstance(raw, int) and raw > 0:
+                    return raw
+        except Exception:
+            pass
+        return DEFAULT_DEPENDENCY_BATCH_SIZE
 
     def infer_basket_groups(
         self,

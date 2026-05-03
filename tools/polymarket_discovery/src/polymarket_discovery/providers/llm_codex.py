@@ -9,20 +9,25 @@ from ..interfaces.codex_invoker import CodexInvoker
 from ..interfaces.llm_basket_group import LLMBasketGroup
 from ..interfaces.llm_dependency_prediction import LLMDependencyPrediction
 from ..interfaces.llm_provider import LLMProvider
+from ..interfaces.market_pair import MarketPair
 from .llm_codec import (
     build_basket_prompt,
-    build_dependency_prompt,
+    build_batched_dependency_prompt,
+    parse_batched_dependency_predictions,
     parse_llm_basket_groups,
-    parse_llm_dependency_prediction,
 )
 from .settings import LLMProviderSettings
 
 
-_SYSTEM_PREAMBLE = (
-    "You infer market dependencies. Reply with a single JSON object containing "
-    "edge_type, confidence, rationale. edge_type must be one of "
-    "mutually_exclusive, conditional, related. confidence must be a number from "
-    "0 to 1. Do not wrap the JSON in code fences or include any other text."
+_BATCHED_SYSTEM_PREAMBLE = (
+    "You infer market dependencies. You will receive a JSON object with a 'pairs' array. "
+    "Each pair has a pair_id, left_market, and right_market. "
+    "Reply with a single JSON object containing a 'predictions' array. "
+    "Each element must echo back the pair_id and include edge_type, confidence, and rationale. "
+    "edge_type must be one of mutually_exclusive, conditional, related. "
+    "confidence must be a number from 0 to 1. "
+    "You MUST return exactly one prediction for every pair_id in the input, in any order. "
+    "Do not wrap the JSON in code fences or include any other text."
 )
 
 _BASKET_SYSTEM_PREAMBLE = (
@@ -86,16 +91,18 @@ class CodexCliLLMProvider(LLMProvider):
     settings: LLMProviderSettings
     invoker: CodexInvoker
 
-    def infer_dependency(
+    def infer_dependencies_batched(
         self,
-        left_market: MarketDescriptor,
-        right_market: MarketDescriptor,
-    ) -> LLMDependencyPrediction:
-        user_prompt = build_dependency_prompt(left_market, right_market)
-        full_prompt = f"{_SYSTEM_PREAMBLE}\n\n{user_prompt}"
+        pairs: Sequence[MarketPair],
+    ) -> list[LLMDependencyPrediction]:
+        """Infer dependency metadata for a batch of market pairs via the Codex CLI."""
+        if not pairs:
+            return []
+        user_prompt = build_batched_dependency_prompt(pairs)
+        full_prompt = f"{_BATCHED_SYSTEM_PREAMBLE}\n\n{user_prompt}"
         raw = self.invoker.run(full_prompt, timeout_seconds=self.settings.timeout_seconds)
         json_text = _extract_json_object(raw)
-        return parse_llm_dependency_prediction(json_text)
+        return parse_batched_dependency_predictions(json_text, expected_count=len(pairs))
 
     def infer_basket_groups(
         self,

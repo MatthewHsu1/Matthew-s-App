@@ -131,29 +131,42 @@ def test_extract_json_object_raises_when_braces_unbalanced() -> None:
         _extract_json_object('{"edge_type":"related","confidence":0.5')
 
 
+def _batched_response(pair_id: str, edge_type: str, confidence: float, rationale: str) -> str:
+    """Helper: format a single-pair batched dependency response."""
+    import json as _json
+    return _json.dumps({
+        "predictions": [{
+            "pair_id": pair_id,
+            "edge_type": edge_type,
+            "confidence": confidence,
+            "rationale": rationale,
+        }]
+    })
+
+
 def test_codex_provider_returns_validated_prediction_for_clean_json() -> None:
     invoker = _FakeInvoker(
-        response='{"edge_type":"conditional","confidence":0.7,"rationale":"shared resolution"}'
+        response=_batched_response("0", "conditional", 0.7, "shared resolution")
     )
     provider = CodexCliLLMProvider(settings=_settings(), invoker=invoker)
 
-    prediction = provider.infer_dependency(
-        _market("m1", "Will A win?"),
-        _market("m2", "Will B win?"),
-    )
+    predictions = provider.infer_dependencies_batched([
+        (_market("m1", "Will A win?"), _market("m2", "Will B win?")),
+    ])
 
-    assert prediction.edge_type == "conditional"
-    assert prediction.confidence == pytest.approx(0.7)
-    assert prediction.rationale == "shared resolution"
+    assert len(predictions) == 1
+    assert predictions[0].edge_type == "conditional"
+    assert predictions[0].confidence == pytest.approx(0.7)
+    assert predictions[0].rationale == "shared resolution"
 
 
 def test_codex_provider_passes_settings_timeout_to_invoker() -> None:
     invoker = _FakeInvoker(
-        response='{"edge_type":"related","confidence":0.5,"rationale":"x"}'
+        response=_batched_response("0", "related", 0.5, "x")
     )
     provider = CodexCliLLMProvider(settings=_settings(timeout_seconds=42.0), invoker=invoker)
 
-    provider.infer_dependency(_market("m1", "L?"), _market("m2", "R?"))
+    provider.infer_dependencies_batched([(_market("m1", "L?"), _market("m2", "R?"))])
 
     assert len(invoker.calls) == 1
     _, timeout = invoker.calls[0]
@@ -162,14 +175,13 @@ def test_codex_provider_passes_settings_timeout_to_invoker() -> None:
 
 def test_codex_provider_prompt_contains_both_market_questions() -> None:
     invoker = _FakeInvoker(
-        response='{"edge_type":"related","confidence":0.5,"rationale":"x"}'
+        response=_batched_response("0", "related", 0.5, "x")
     )
     provider = CodexCliLLMProvider(settings=_settings(), invoker=invoker)
 
-    provider.infer_dependency(
-        _market("m1", "Will Candidate A win?"),
-        _market("m2", "Will Candidate B win?"),
-    )
+    provider.infer_dependencies_batched([
+        (_market("m1", "Will Candidate A win?"), _market("m2", "Will Candidate B win?")),
+    ])
 
     prompt, _ = invoker.calls[0]
     assert "Will Candidate A win?" in prompt
@@ -179,30 +191,24 @@ def test_codex_provider_prompt_contains_both_market_questions() -> None:
 
 
 def test_codex_provider_recovers_from_fenced_response() -> None:
-    invoker = _FakeInvoker(
-        response='```json\n{"edge_type":"related","confidence":0.5,"rationale":"x"}\n```'
-    )
+    raw = _batched_response("0", "related", 0.5, "x")
+    invoker = _FakeInvoker(response=f"```json\n{raw}\n```")
     provider = CodexCliLLMProvider(settings=_settings(), invoker=invoker)
 
-    prediction = provider.infer_dependency(_market("m1", "L?"), _market("m2", "R?"))
+    predictions = provider.infer_dependencies_batched([(_market("m1", "L?"), _market("m2", "R?"))])
 
-    assert prediction.edge_type == "related"
+    assert predictions[0].edge_type == "related"
 
 
 def test_codex_provider_recovers_from_prose_wrapped_response() -> None:
-    invoker = _FakeInvoker(
-        response=(
-            "Here is the analysis:\n"
-            '{"edge_type":"mutually_exclusive","confidence":0.95,"rationale":"only one wins"}'
-            "\nThanks."
-        )
-    )
+    raw = _batched_response("0", "mutually_exclusive", 0.95, "only one wins")
+    invoker = _FakeInvoker(response=f"Here is the analysis:\n{raw}\nThanks.")
     provider = CodexCliLLMProvider(settings=_settings(), invoker=invoker)
 
-    prediction = provider.infer_dependency(_market("m1", "L?"), _market("m2", "R?"))
+    predictions = provider.infer_dependencies_batched([(_market("m1", "L?"), _market("m2", "R?"))])
 
-    assert prediction.edge_type == "mutually_exclusive"
-    assert prediction.confidence == pytest.approx(0.95)
+    assert predictions[0].edge_type == "mutually_exclusive"
+    assert predictions[0].confidence == pytest.approx(0.95)
 
 
 def test_codex_provider_propagates_invoker_error() -> None:
@@ -210,17 +216,17 @@ def test_codex_provider_propagates_invoker_error() -> None:
     provider = CodexCliLLMProvider(settings=_settings(), invoker=invoker)
 
     with pytest.raises(RuntimeError, match="not authenticated"):
-        provider.infer_dependency(_market("m1", "L?"), _market("m2", "R?"))
+        provider.infer_dependencies_batched([(_market("m1", "L?"), _market("m2", "R?"))])
 
 
 def test_codex_provider_rejects_invalid_edge_type() -> None:
     invoker = _FakeInvoker(
-        response='{"edge_type":"basket","confidence":0.5,"rationale":"x"}'
+        response=_batched_response("0", "basket", 0.5, "x")
     )
     provider = CodexCliLLMProvider(settings=_settings(), invoker=invoker)
 
     with pytest.raises(ValueError, match="edge_type"):
-        provider.infer_dependency(_market("m1", "L?"), _market("m2", "R?"))
+        provider.infer_dependencies_batched([(_market("m1", "L?"), _market("m2", "R?"))])
 
 
 def test_codex_provider_rejects_empty_response() -> None:
@@ -228,7 +234,7 @@ def test_codex_provider_rejects_empty_response() -> None:
     provider = CodexCliLLMProvider(settings=_settings(), invoker=invoker)
 
     with pytest.raises(ValueError, match="empty"):
-        provider.infer_dependency(_market("m1", "L?"), _market("m2", "R?"))
+        provider.infer_dependencies_batched([(_market("m1", "L?"), _market("m2", "R?"))])
 
 
 def test_codex_provider_rejects_non_json_response() -> None:
@@ -236,7 +242,7 @@ def test_codex_provider_rejects_non_json_response() -> None:
     provider = CodexCliLLMProvider(settings=_settings(), invoker=invoker)
 
     with pytest.raises(ValueError, match="JSON object"):
-        provider.infer_dependency(_market("m1", "L?"), _market("m2", "R?"))
+        provider.infer_dependencies_batched([(_market("m1", "L?"), _market("m2", "R?"))])
 
 
 def test_subprocess_invoker_returns_stdout_from_binary() -> None:

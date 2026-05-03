@@ -7,6 +7,7 @@ from ..contracts import MarketDescriptor
 from ..interfaces.llm_basket_group import LLMBasketGroup
 from ..interfaces.llm_dependency_prediction import LLMDependencyPrediction
 from ..interfaces.llm_provider import LLMProvider
+from ..interfaces.market_pair import MarketPair
 
 
 @dataclass(slots=True)
@@ -20,25 +21,32 @@ class DeepSeekLLMProviderStub(LLMProvider):
 
     model_name: str = "deepseek-stub"
 
-    def infer_dependency(
+    def infer_dependencies_batched(
         self,
-        left_market: MarketDescriptor,
-        right_market: MarketDescriptor,
-    ) -> LLMDependencyPrediction:
-        left = left_market.question.lower()
-        right = right_market.question.lower()
-        if self._looks_mutually_exclusive(left, right):
-            return LLMDependencyPrediction(
-                edge_type="mutually_exclusive",
-                confidence=0.95,
-                rationale=f"{self.model_name}: lexical exclusivity heuristic matched",
-            )
-
-        return LLMDependencyPrediction(
-            edge_type="related",
-            confidence=0.6,
-            rationale=f"{self.model_name}: default related classification",
-        )
+        pairs: Sequence[MarketPair],
+    ) -> list[LLMDependencyPrediction]:
+        """Return deterministic dependency predictions for a batch of market pairs."""
+        results: list[LLMDependencyPrediction] = []
+        for left_market, right_market in pairs:
+            left = left_market.question.lower()
+            right = right_market.question.lower()
+            if self._looks_mutually_exclusive(left, right):
+                results.append(
+                    LLMDependencyPrediction(
+                        edge_type="mutually_exclusive",
+                        confidence=0.95,
+                        rationale=f"{self.model_name}: lexical exclusivity heuristic matched",
+                    )
+                )
+            else:
+                results.append(
+                    LLMDependencyPrediction(
+                        edge_type="related",
+                        confidence=0.6,
+                        rationale=f"{self.model_name}: default related classification",
+                    )
+                )
+        return results
 
     def infer_basket_groups(
         self,

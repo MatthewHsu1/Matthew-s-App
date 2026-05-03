@@ -7,13 +7,14 @@ from ..contracts import MarketDescriptor
 from ..interfaces.llm_basket_group import LLMBasketGroup
 from ..interfaces.llm_dependency_prediction import LLMDependencyPrediction
 from ..interfaces.llm_provider import LLMProvider
+from ..interfaces.market_pair import MarketPair
 from ..net.http_json import request_json
 from ..utils.coercion import is_local_endpoint
 from .llm_codec import (
     build_basket_prompt,
-    build_dependency_prompt,
+    build_batched_dependency_prompt,
+    parse_batched_dependency_predictions,
     parse_llm_basket_groups,
-    parse_llm_dependency_prediction,
 )
 from .settings import LLMProviderSettings
 
@@ -27,6 +28,16 @@ _BASKET_SYSTEM_PROMPT = (
     'Return {"baskets": []} if no complete sets are found.'
 )
 
+_BATCHED_DEPENDENCY_SYSTEM_PROMPT = (
+    "You infer market dependencies. You will receive a JSON object with a 'pairs' array. "
+    "Each pair has a pair_id, left_market, and right_market. "
+    "Reply with a single JSON object containing a 'predictions' array. "
+    "Each element must echo back the pair_id and include edge_type, confidence, and rationale. "
+    "edge_type must be one of mutually_exclusive, conditional, related. "
+    "confidence must be a number from 0 to 1. "
+    "You MUST return exactly one prediction for every pair_id in the input, in any order."
+)
+
 
 @dataclass(slots=True)
 class OpenAICompatibleLLMProvider(LLMProvider):
@@ -38,11 +49,13 @@ class OpenAICompatibleLLMProvider(LLMProvider):
         if not self.settings.api_key and not is_local_endpoint(self.settings.base_url):
             raise ValueError("api_key is required for non-local llm providers")
 
-    def infer_dependency(
+    def infer_dependencies_batched(
         self,
-        left_market: MarketDescriptor,
-        right_market: MarketDescriptor,
-    ) -> LLMDependencyPrediction:
+        pairs: Sequence[MarketPair],
+    ) -> list[LLMDependencyPrediction]:
+        """Infer dependency metadata for a batch of market pairs in a single HTTP call."""
+        if not pairs:
+            return []
         payload = request_json(
             url=self.settings.base_url,
             timeout_seconds=self.settings.timeout_seconds,
@@ -56,16 +69,11 @@ class OpenAICompatibleLLMProvider(LLMProvider):
                 "messages": [
                     {
                         "role": "system",
-                        "content": (
-                            "You infer market dependencies. Reply with a single JSON object "
-                            "containing edge_type, confidence, rationale. edge_type must be one "
-                            "of mutually_exclusive, conditional, related. confidence must be a "
-                            "number from 0 to 1."
-                        ),
+                        "content": _BATCHED_DEPENDENCY_SYSTEM_PROMPT,
                     },
                     {
                         "role": "user",
-                        "content": build_dependency_prompt(left_market, right_market),
+                        "content": build_batched_dependency_prompt(pairs),
                     },
                 ],
             },
@@ -75,7 +83,7 @@ class OpenAICompatibleLLMProvider(LLMProvider):
             },
         )
         content = self._extract_message_content(payload)
-        return parse_llm_dependency_prediction(content)
+        return parse_batched_dependency_predictions(content, expected_count=len(pairs))
 
     def infer_basket_groups(
         self,

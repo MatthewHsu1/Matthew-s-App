@@ -6,15 +6,26 @@ from ..contracts import MarketDescriptor
 
 from .llm_basket_group import LLMBasketGroup
 from .llm_dependency_prediction import LLMDependencyPrediction
+from .market_pair import MarketPair
 
 
 class LLMProvider(Protocol):
-    def infer_dependency(
+    def infer_dependencies_batched(
         self,
-        left_market: MarketDescriptor,
-        right_market: MarketDescriptor,
-    ) -> LLMDependencyPrediction:
-        """Infer dependency metadata for a pair of markets."""
+        pairs: Sequence[MarketPair],
+    ) -> list[LLMDependencyPrediction]:
+        """Infer dependency metadata for a batch of market pairs in a single call.
+
+        ``pairs`` is a sequence of ``(left_market, right_market)`` tuples.
+        Returns one :class:`LLMDependencyPrediction` per pair, in the same
+        order as the input sequence.
+
+        The caller is responsible for chunking large sequences into
+        provider-sized batches before calling this method.
+
+        Raises :class:`ValueError` if the provider response is malformed or
+        any individual prediction fails validation.
+        """
 
     def infer_basket_groups(
         self,
