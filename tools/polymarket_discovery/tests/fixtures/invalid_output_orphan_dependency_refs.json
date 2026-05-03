@@ -1,7 +1,7 @@
 {
   "schema_version": "v1",
   "run_metadata": {
-    "run_id": "fixture-run-001",
+    "run_id": "run_20260411T000000Z_f1c70000beef",
     "generated_at_utc": "2026-04-11T00:00:00Z",
     "market_source": "fixture",
     "embedding_model": "stub-embed-v1",

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from hashlib import sha256
 import json
 from pathlib import Path
@@ -106,11 +107,26 @@ def load_config(config_path: str | Path) -> DiscoveryConfig:
 
 
 def generate_run_id(config: DiscoveryConfig) -> str:
-    """Deterministic run id based on canonicalized config payload."""
+    """Unique-per-execution run id.
+
+    Format: ``run_<timestamp>_<config_hash>``
+
+    - ``<timestamp>`` is a UTC ISO-8601 compact string (``YYYYMMDDTHHMMSSZ``) that
+      makes the ID human-readable and lexicographically sortable by wall-clock time.
+    - ``<config_hash>`` is the first 12 hex characters of the SHA-256 of the
+      canonicalized config, preserving the config fingerprint so callers can still
+      diff "did the config change between these two runs?" at a glance.
+
+    Two runs with identical configs executed at different times will produce
+    different IDs; Phase 2 consumers can distinguish artifacts without inspecting
+    ``generated_at_utc`` or the artifact bytes.
+    """
+    now_utc = datetime.now(tz=timezone.utc)
+    timestamp = now_utc.strftime("%Y%m%dT%H%M%SZ")
 
     payload = json.dumps(config.to_canonical_dict(), sort_keys=True, separators=(",", ":"))
     digest = sha256(payload.encode("utf-8")).hexdigest()[:12]
-    return f"run_{digest}"
+    return f"run_{timestamp}_{digest}"
 
 
 def ensure_artifact_dir(config: DiscoveryConfig, run_id: str) -> Path:

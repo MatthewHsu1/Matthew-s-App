@@ -34,7 +34,8 @@
         },
         "run_id": {
           "type": "string",
-          "minLength": 1
+          "pattern": "^run_[0-9]{8}T[0-9]{6}Z_[0-9a-f]{12}$",
+          "description": "Unique per-execution identifier in the format run_<YYYYMMDDTHHMMSSz>_<config_hash12>. Lexicographically sortable by wall-clock time; config hash suffix enables config-change diffing."
         },
         "generated_at_utc": {
           "type": "string",

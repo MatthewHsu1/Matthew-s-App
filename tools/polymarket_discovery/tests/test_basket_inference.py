@@ -425,7 +425,7 @@ class TestConvergenceInvariantsWithLLMBaskets:
         baskets, synthetic_edges = DefaultBasketBuilder().build(markets, [], basket_groups=groups)
 
         run_metadata = RunMetadata(
-            run_id="test-llm-basket-run",
+            run_id="run_20260502T000000Z_0000000000ba",
             generated_at_utc="2026-05-02T00:00:00Z",
             market_source="fixture",
             embedding_model="stub",
@@ -652,7 +652,7 @@ class TestGroupMarketsForBasketInference:
         run_pipeline(
             markets=markets,
             run_metadata=RunMetadata(
-                run_id="test-end-date-bucketing",
+                run_id="run_20260502T000000Z_0000000000ed",
                 generated_at_utc="2026-05-02T00:00:00Z",
                 market_source="fixture",
                 embedding_model="stub",

@@ -37,7 +37,7 @@ def _minimal_document(baskets: list[dict]) -> dict:
         "schema_version": "v1",
         "run_metadata": {
             "schema_version": "v1",
-            "run_id": "test-run",
+            "run_id": "run_20260501T000000Z_00000000000e",
             "generated_at_utc": "2026-05-01T00:00:00Z",
             "market_source": "fixture",
             "embedding_model": "stub",
@@ -267,7 +267,7 @@ class TestOverlapRule:
             "schema_version": "v1",
             "run_metadata": {
                 "schema_version": "v1",
-                "run_id": "test-overlap",
+                "run_id": "run_20260501T000000Z_00000000abe1",
                 "generated_at_utc": "2026-05-01T00:00:00Z",
                 "market_source": "fixture",
                 "embedding_model": "stub",
@@ -349,7 +349,7 @@ class TestOverlapRule:
             "schema_version": "v1",
             "run_metadata": {
                 "schema_version": "v1",
-                "run_id": "test-no-overlap",
+                "run_id": "run_20260501T000000Z_00000000ab20",
                 "generated_at_utc": "2026-05-01T00:00:00Z",
                 "market_source": "fixture",
                 "embedding_model": "stub",

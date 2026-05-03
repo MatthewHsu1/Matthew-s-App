@@ -241,7 +241,7 @@ def test_schema_accepts_run_metadata_with_embedding_provider() -> None:
     payload = {
         "schema_version": "v1",
         "run_metadata": {
-            "run_id": "test-run",
+            "run_id": "run_20260501T000000Z_00000000000e",
             "generated_at_utc": "2026-05-01T00:00:00Z",
             "market_source": "fixture",
             "embedding_model": "stub-embed-v1",
@@ -299,7 +299,7 @@ def test_schema_still_accepts_run_metadata_without_embedding_provider() -> None:
     payload = {
         "schema_version": "v1",
         "run_metadata": {
-            "run_id": "test-run",
+            "run_id": "run_20260501T000000Z_00000000000e",
             "generated_at_utc": "2026-05-01T00:00:00Z",
             "market_source": "fixture",
             "embedding_model": "stub-embed-v1",
