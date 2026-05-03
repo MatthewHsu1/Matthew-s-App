@@ -16,7 +16,8 @@ from polymarket_discovery.config import DiscoveryConfig
 from polymarket_discovery.contracts import BasketItem
 from polymarket_discovery.contracts import DependencyEdge
 from polymarket_discovery.contracts import MarketDescriptor
-from polymarket_discovery.utils.logging_utils import JsonlStageLogger
+import logging
+from polymarket_discovery.utils.jsonl_logging import setup_jsonl_logging
 from polymarket_discovery.pipeline import PipelineComponents
 from polymarket_discovery.pipeline import run_pipeline
 from polymarket_discovery.serialization import validate_output_document
@@ -268,7 +269,9 @@ class _NoopBasketValidator:
 
 def test_run_pipeline_rejects_invalid_basket_at_final_schema_gate(tmp_path: Path) -> None:
     config = DiscoveryConfig(output_root=tmp_path / "artifacts", embedding_provider="stub")
-    stage_logger = JsonlStageLogger(path=tmp_path / "stages.jsonl", run_id="run_20260502T000000Z_00000000000e")
+    log_path = tmp_path / "stages.jsonl"
+    handler = setup_jsonl_logging(path=log_path, run_id="run_20260502T000000Z_00000000000e")
+    pkg_logger = logging.getLogger("polymarket_discovery")
     components = PipelineComponents(
         market_source=_StaticMarketSource(),
         topic_assigner=_PassthroughTopicAssigner(),
@@ -278,10 +281,18 @@ def test_run_pipeline_rejects_invalid_basket_at_final_schema_gate(tmp_path: Path
         basket_validator=_NoopBasketValidator(),
     )
 
-    with pytest.raises(ValueError, match="missing dependency edge ID"):
-        run_pipeline(config=config, components=components, stage_logger=stage_logger)
+    try:
+        with pytest.raises(ValueError, match="missing dependency edge ID"):
+            run_pipeline(
+                config=config,
+                components=components,
+                run_id="run_20260502T000000Z_00000000000e",
+            )
+    finally:
+        pkg_logger.removeHandler(handler)
+        handler.close()
 
-    stage_records = _read_stage_records(stage_logger.path)
+    stage_records = _read_stage_records(log_path)
     assert [(record["event"], record.get("stage")) for record in stage_records] == [
         ("stage_started", "market_source"),
         ("stage_completed", "market_source"),

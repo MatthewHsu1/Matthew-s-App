@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import logging
 import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -20,14 +19,11 @@ from .llm_codec import (
     parse_llm_basket_groups,
 )
 from .settings import LLMProviderSettings
-from ..utils.logging_utils import JsonlStageLogger
 
 # Resolved once at module load; stable for the lifetime of the process.
 _SCHEMAS_DIR = Path(__file__).parent / "schemas"
 _DEPENDENCY_SCHEMA_PATH = _SCHEMAS_DIR / "dependency_predictions.json"
 _BASKET_SCHEMA_PATH = _SCHEMAS_DIR / "basket_groups.json"
-
-logger = logging.getLogger(__name__)
 
 _BATCHED_SYSTEM_PREAMBLE = (
     "You infer market dependencies. You will receive a JSON object with a 'pairs' array. "
@@ -163,9 +159,8 @@ def _extract_json_object(raw: str) -> str:
 class CodexCliLLMProvider(LLMProvider):
     settings: LLMProviderSettings
     invoker: CodexInvoker
-    stage_logger: JsonlStageLogger | None = None
 
-    def _run_and_log(
+    def _run(
         self,
         prompt: str,
         *,
@@ -176,26 +171,6 @@ class CodexCliLLMProvider(LLMProvider):
             timeout_seconds=self.settings.timeout_seconds,
             output_schema_path=output_schema_path,
         )
-        if result.usage is not None:
-            u = result.usage
-            if self.stage_logger is not None:
-                self.stage_logger.log(
-                    event="llm_usage",
-                    input_tokens=u.input_tokens,
-                    cached_input_tokens=u.cached_input_tokens,
-                    output_tokens=u.output_tokens,
-                    reasoning_output_tokens=u.reasoning_output_tokens,
-                )
-            else:
-                logger.info(
-                    "codex_usage",
-                    extra={
-                        "input_tokens": u.input_tokens,
-                        "cached_input_tokens": u.cached_input_tokens,
-                        "output_tokens": u.output_tokens,
-                        "reasoning_output_tokens": u.reasoning_output_tokens,
-                    },
-                )
         return result.text
 
     @staticmethod
@@ -223,7 +198,7 @@ class CodexCliLLMProvider(LLMProvider):
             return []
         user_prompt = build_batched_dependency_prompt(pairs)
         full_prompt = f"{_BATCHED_SYSTEM_PREAMBLE}\n\n{user_prompt}"
-        raw = self._run_and_log(full_prompt, output_schema_path=_DEPENDENCY_SCHEMA_PATH)
+        raw = self._run(full_prompt, output_schema_path=_DEPENDENCY_SCHEMA_PATH)
         json_text = self._parse_response(raw)
         return parse_batched_dependency_predictions(json_text, expected_count=len(pairs))
 
@@ -236,7 +211,7 @@ class CodexCliLLMProvider(LLMProvider):
         known_ids = frozenset(m.market_id for m in markets)
         user_prompt = build_basket_prompt(markets)
         full_prompt = f"{_BASKET_SYSTEM_PREAMBLE}\n\n{user_prompt}"
-        raw = self._run_and_log(full_prompt, output_schema_path=_BASKET_SCHEMA_PATH)
+        raw = self._run(full_prompt, output_schema_path=_BASKET_SCHEMA_PATH)
         json_text = self._parse_response(raw)
         return parse_llm_basket_groups(json_text, known_market_ids=known_ids)
 

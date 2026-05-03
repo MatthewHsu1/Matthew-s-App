@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import UTC, datetime
+import logging
 
 from .config import DiscoveryConfig
 from .contracts import ArbitrageOutputDocument, RunMetadata
@@ -11,8 +12,11 @@ from .interfaces.candidate_reducer import CandidateReducer
 from .interfaces.dependency_inferencer import DependencyInferencer
 from .interfaces.market_source import MarketSource
 from .interfaces.topic_assigner import TopicAssigner
-from .utils.logging_utils import JsonlStageLogger
+from .utils.jsonl_logging import stage
 from .serialization import to_output_json, validate_output_document
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(slots=True)
@@ -34,7 +38,7 @@ def run_pipeline(
     *,
     config: DiscoveryConfig,
     components: PipelineComponents,
-    stage_logger: JsonlStageLogger,
+    run_id: str,
 ) -> PipelineRunResult:
     enabled_stages = set(config.stages)
 
@@ -44,28 +48,28 @@ def run_pipeline(
     if not _is_enabled("market_source"):
         raise ValueError("Stage 'market_source' is required for pipeline execution.")
 
-    with stage_logger.stage("market_source"):
+    with stage("market_source"):
         markets = components.market_source.fetch_active_markets(config)
 
     if _is_enabled("topic_assigner"):
-        with stage_logger.stage("topic_assigner"):
+        with stage("topic_assigner"):
             markets_with_topics = components.topic_assigner.assign_topics(markets, config)
     else:
-        stage_logger.log(event="stage_skipped", stage="topic_assigner", reason="disabled_in_config")
+        logger.info("stage_skipped", extra={"stage": "topic_assigner", "reason": "disabled_in_config"})
         markets_with_topics = list(markets)
 
     if _is_enabled("candidate_reducer"):
-        with stage_logger.stage("candidate_reducer"):
+        with stage("candidate_reducer"):
             candidates = components.candidate_reducer.reduce(markets_with_topics, config)
     else:
-        stage_logger.log(event="stage_skipped", stage="candidate_reducer", reason="disabled_in_config")
+        logger.info("stage_skipped", extra={"stage": "candidate_reducer", "reason": "disabled_in_config"})
         candidates = []
 
     if _is_enabled("dependency_inferencer"):
-        with stage_logger.stage("dependency_inferencer"):
+        with stage("dependency_inferencer"):
             dependencies = components.dependency_inferencer.infer_dependencies(candidates, config)
     else:
-        stage_logger.log(event="stage_skipped", stage="dependency_inferencer", reason="disabled_in_config")
+        logger.info("stage_skipped", extra={"stage": "dependency_inferencer", "reason": "disabled_in_config"})
         dependencies = []
 
     # Basket-structure inference: ask the LLM provider to identify N-way
@@ -95,24 +99,24 @@ def run_pipeline(
                 )
 
     if _is_enabled("basket_builder"):
-        with stage_logger.stage("basket_builder"):
+        with stage("basket_builder"):
             baskets, synthetic_edges = components.basket_builder.build(
                 markets_with_topics, dependencies, config, basket_groups=basket_groups
             )
     else:
-        stage_logger.log(event="stage_skipped", stage="basket_builder", reason="disabled_in_config")
+        logger.info("stage_skipped", extra={"stage": "basket_builder", "reason": "disabled_in_config"})
         baskets, synthetic_edges = [], []
 
     all_dependencies = list(dependencies) + synthetic_edges
 
     if _is_enabled("basket_validator"):
-        with stage_logger.stage("basket_validator"):
+        with stage("basket_validator"):
             components.basket_validator.validate(baskets, config)
     else:
-        stage_logger.log(event="stage_skipped", stage="basket_validator", reason="disabled_in_config")
+        logger.info("stage_skipped", extra={"stage": "basket_validator", "reason": "disabled_in_config"})
 
     run_metadata = RunMetadata(
-        run_id=stage_logger.run_id,
+        run_id=run_id,
         generated_at_utc=datetime.now(UTC).isoformat(),
         market_source=config.market_source,
         embedding_model=config.embedding_model,
@@ -141,12 +145,10 @@ def write_run_artifact(result: PipelineRunResult, output_path: str) -> None:
 
 def build_default_components(
     config: DiscoveryConfig,
-    *,
-    stage_logger: JsonlStageLogger | None = None,
 ) -> PipelineComponents:
     from .components import build_components
 
-    components = build_components(config, stage_logger=stage_logger)
+    components = build_components(config)
     if not isinstance(components, PipelineComponents):
         raise TypeError("build_components() must return PipelineComponents.")
     return components

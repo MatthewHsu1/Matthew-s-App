@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from .interfaces.market_source import MarketSource
 
@@ -16,9 +16,6 @@ from .stages import (
     LLMDependencyInferencer,
     TopicEndDateCandidateReducer,
 )
-
-if TYPE_CHECKING:
-    from .utils.logging_utils import JsonlStageLogger
 
 
 @dataclass(slots=True)
@@ -81,14 +78,12 @@ def _select_market_source(config: DiscoveryConfig | None = None) -> MarketSource
 
 def build_components(
     config: DiscoveryConfig,
-    *,
-    stage_logger: JsonlStageLogger | None = None,
 ) -> PipelineComponents:
     return PipelineComponents(
         market_source=_select_market_source(config),
         topic_assigner=DefaultTopicAssigner(),
         candidate_reducer=TopicEndDateCandidateReducer(),
-        dependency_inferencer=LLMDependencyInferencer(stage_logger=stage_logger),
+        dependency_inferencer=LLMDependencyInferencer(),
         basket_builder=DefaultBasketBuilder(),
         basket_validator=DefaultBasketValidator(),
     )

@@ -368,6 +368,8 @@ def test_resolve_llm_settings_codex_does_not_require_base_url_or_api_key(
 
 
 def test_build_llm_provider_returns_codex_adapter(tmp_path: Path) -> None:
+    from polymarket_discovery.providers.codex_invoker_logging import LoggingCodexInvoker
+
     config = _config(
         tmp_path,
         dependency_inferencer={
@@ -380,10 +382,13 @@ def test_build_llm_provider_returns_codex_adapter(tmp_path: Path) -> None:
 
     assert isinstance(provider, CodexCliLLMProvider)
     assert provider.settings.model_name == "gpt-5.4"
-    assert isinstance(provider.invoker, SubprocessCodexInvoker)
+    assert isinstance(provider.invoker, LoggingCodexInvoker)
+    assert isinstance(provider.invoker.inner, SubprocessCodexInvoker)
 
 
 def test_build_llm_provider_codex_supports_invoker_overrides(tmp_path: Path) -> None:
+    from polymarket_discovery.providers.codex_invoker_logging import LoggingCodexInvoker
+
     config = _config(
         tmp_path,
         dependency_inferencer={
@@ -397,10 +402,12 @@ def test_build_llm_provider_codex_supports_invoker_overrides(tmp_path: Path) -> 
     provider = build_llm_provider(config)
 
     assert isinstance(provider, CodexCliLLMProvider)
-    assert isinstance(provider.invoker, SubprocessCodexInvoker)
-    assert provider.invoker.binary == "/usr/local/bin/codex-custom"
-    assert provider.invoker.base_args == ("chat", "--model", "gpt-5.4")
-    assert provider.invoker.use_json_flag is False
+    assert isinstance(provider.invoker, LoggingCodexInvoker)
+    inner = provider.invoker.inner
+    assert isinstance(inner, SubprocessCodexInvoker)
+    assert inner.binary == "/usr/local/bin/codex-custom"
+    assert inner.base_args == ("chat", "--model", "gpt-5.4")
+    assert inner.use_json_flag is False
 
 
 def test_subprocess_invoker_raises_on_timeout() -> None:
@@ -508,37 +515,51 @@ def test_parse_jsonl_usage_is_none_when_no_turn_completed_event() -> None:
 
 
 # ---------------------------------------------------------------------------
-# CodexCliLLMProvider usage-logging integration test
+# CodexCliLLMProvider usage-logging integration test (via LoggingCodexInvoker)
 # ---------------------------------------------------------------------------
 
-def test_codex_provider_logs_usage_when_present(tmp_path: Path) -> None:
-    """Provider should emit a usage log entry when the invoker returns token counts."""
-    import json as _json
-    from polymarket_discovery.utils.logging_utils import JsonlStageLogger
-
-    log_path = tmp_path / "run.jsonl"
-    logger = JsonlStageLogger(path=log_path, run_id="test-run")
+def test_codex_provider_logs_usage_when_present() -> None:
+    """LoggingCodexInvoker wrapping a fake invoker emits a codex_usage INFO record."""
+    import logging as _logging
+    from polymarket_discovery.providers.codex_invoker_logging import LoggingCodexInvoker
 
     usage = CodexUsage(input_tokens=100, cached_input_tokens=10, output_tokens=20,
                        reasoning_output_tokens=5)
-    invoker = _fake(_batched_response("0", "related", 0.5, "x"), usage=usage)
-    provider = CodexCliLLMProvider(settings=_settings(), invoker=invoker, stage_logger=logger)
+    inner = _fake(_batched_response("0", "related", 0.5, "x"), usage=usage)
+    logging_invoker = LoggingCodexInvoker(inner=inner)
+    provider = CodexCliLLMProvider(settings=_settings(), invoker=logging_invoker)
 
-    provider.infer_dependencies_batched([(_market("m1", "L?"), _market("m2", "R?"))])
+    records: list[_logging.LogRecord] = []
 
-    entries = [_json.loads(line) for line in log_path.read_text().splitlines() if line.strip()]
-    usage_entries = [e for e in entries if e.get("event") == "llm_usage"]
-    assert len(usage_entries) == 1
-    entry = usage_entries[0]
-    assert entry["input_tokens"] == 100
-    assert entry["output_tokens"] == 20
-    assert entry["cached_input_tokens"] == 10
+    class _Cap(_logging.Handler):
+        def emit(self, r: _logging.LogRecord) -> None:
+            records.append(r)
+
+    handler = _Cap()
+    handler.setLevel(_logging.INFO)
+    target = _logging.getLogger("polymarket_discovery.providers.codex_invoker_logging")
+    target.addHandler(handler)
+    target.setLevel(_logging.INFO)
+    try:
+        provider.infer_dependencies_batched([(_market("m1", "L?"), _market("m2", "R?"))])
+    finally:
+        target.removeHandler(handler)
+
+    usage_records = [r for r in records if r.getMessage() == "codex_usage"]
+    assert len(usage_records) == 1
+    r = usage_records[0]
+    assert r.__dict__["input_tokens"] == 100
+    assert r.__dict__["output_tokens"] == 20
+    assert r.__dict__["cached_input_tokens"] == 10
 
 
-def test_codex_provider_works_without_logger_when_usage_absent() -> None:
-    """Provider works with stage_logger=None and usage=None — no crash."""
-    invoker = _fake(_batched_response("0", "related", 0.5, "x"), usage=None)
-    provider = CodexCliLLMProvider(settings=_settings(), invoker=invoker, stage_logger=None)
+def test_codex_provider_works_without_usage() -> None:
+    """Provider works when usage is None — no logging record, correct prediction returned."""
+    from polymarket_discovery.providers.codex_invoker_logging import LoggingCodexInvoker
+
+    inner = _fake(_batched_response("0", "related", 0.5, "x"), usage=None)
+    logging_invoker = LoggingCodexInvoker(inner=inner)
+    provider = CodexCliLLMProvider(settings=_settings(), invoker=logging_invoker)
 
     predictions = provider.infer_dependencies_batched([(_market("m1", "L?"), _market("m2", "R?"))])
 
