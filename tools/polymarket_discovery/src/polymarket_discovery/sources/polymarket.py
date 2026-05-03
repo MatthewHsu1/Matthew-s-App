@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any, Sequence
@@ -20,6 +21,7 @@ class PolymarketSourceSettings:
     retry: RetrySettings = field(default_factory=lambda: RetrySettings(max_attempts=4, backoff_seconds=0.5, backoff_factor=2.0))
     page_size: int = 100
     max_markets: int | None = None
+    clob_workers: int = 50
 
 
 @dataclass(slots=True)
@@ -44,26 +46,50 @@ class PolymarketMarketSource(MarketSource):
         # each one up individually against the CLOB /markets/{condition_id} endpoint.
         # This avoids bulk-scanning tens of thousands of CLOB markets just to join
         # a few hundred that Gamma returned.
-        seen_condition_ids: dict[str, _NormalizedCLOBMarket | None] = {}
+        #
+        # Lookups are parallelised with a bounded ThreadPoolExecutor so that the
+        # per-host rate limiter (not Python threads) is the actual throttle.
+        # Only one lookup per unique condition_id is issued even when multiple Gamma
+        # markets share the same condition_id — dedup happens here, before dispatch.
+        unique_cids: list[str] = []
+        seen_for_dedup: set[str] = set()
+
         for raw_market in gamma_markets:
             cid = self._string_field(raw_market, "conditionId", "condition_id")
-            if cid and cid not in seen_condition_ids:
-                seen_condition_ids[cid] = self._fetch_clob_market(cid, settings)
+            if cid and cid not in seen_for_dedup:
+                seen_for_dedup.add(cid)
+                unique_cids.append(cid)
+
+        seen_condition_ids: dict[str, _NormalizedCLOBMarket | None] = {}
+        with ThreadPoolExecutor(max_workers=settings.clob_workers) as pool:
+            future_to_cid = {
+                pool.submit(self._fetch_clob_market, cid, settings): cid
+                for cid in unique_cids
+            }
+
+            for future in as_completed(future_to_cid):
+                cid = future_to_cid[future]
+                seen_condition_ids[cid] = future.result()
 
         normalized: list[MarketDescriptor] = []
         seen_market_ids: set[str] = set()
+
         for raw_market in gamma_markets:
             cid = self._string_field(raw_market, "conditionId", "condition_id")
             clob_market = seen_condition_ids.get(cid) if cid else None
             market = self._normalize_market(raw_market, clob_market)
+
             if market is None or market.market_id in seen_market_ids:
                 continue
+
             seen_market_ids.add(market.market_id)
             normalized.append(market)
 
         normalized.sort(key=self._sort_key)
+
         if settings.max_markets is not None:
             return normalized[: settings.max_markets]
+        
         return normalized
 
     def _resolve_settings(self, config: Any | None) -> PolymarketSourceSettings:
@@ -79,6 +105,7 @@ class PolymarketMarketSource(MarketSource):
                 break
 
         retries = coerce_int(source_params.get("retries"), 3)
+        
         settings = PolymarketSourceSettings(
             gamma_base_url=coerce_str(source_params.get("gamma_base_url"), "https://gamma-api.polymarket.com"),
             clob_base_url=coerce_str(source_params.get("clob_base_url"), "https://clob.polymarket.com"),
@@ -90,7 +117,9 @@ class PolymarketMarketSource(MarketSource):
             ),
             page_size=coerce_int(source_params.get("page_size"), 100),
             max_markets=coerce_optional_int(source_params.get("max_markets")),
+            clob_workers=coerce_int(source_params.get("clob_workers"), 50),
         )
+
         if settings.timeout_seconds <= 0:
             raise ValueError("timeout_seconds must be greater than zero")
         if retries < 0:
@@ -103,6 +132,9 @@ class PolymarketMarketSource(MarketSource):
             raise ValueError("page_size must be greater than zero")
         if settings.max_markets is not None and settings.max_markets < 0:
             raise ValueError("max_markets must be zero or greater")
+        if settings.clob_workers <= 0:
+            raise ValueError("clob_workers must be greater than zero")
+        
         return settings
 
     def _fetch_gamma_markets(self, settings: PolymarketSourceSettings) -> list[dict[str, Any]]:

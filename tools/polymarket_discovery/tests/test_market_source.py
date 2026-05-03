@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import sys
+import threading
 from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
@@ -98,6 +99,7 @@ def test_polymarket_source_normalizes_and_filters_active_markets(tmp_path: Path,
         "cond-b": _make_clob_market("cond-b", ["tok-b-no", "tok-b-yes"]),
     }
     requested_urls: list[str] = []
+    _url_lock = threading.Lock()
     config = _config(
         tmp_path,
         polymarket={
@@ -112,7 +114,8 @@ def test_polymarket_source_normalizes_and_filters_active_markets(tmp_path: Path,
 
     def fake_urlopen(request, timeout=0):
         url = getattr(request, "full_url", request)
-        requested_urls.append(url)
+        with _url_lock:
+            requested_urls.append(url)
         if "gamma-api.polymarket.com/markets" in url:
             return _FakeResponse(gamma_payload)
         for cid, payload in clob_markets.items():

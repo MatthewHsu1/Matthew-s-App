@@ -142,3 +142,6 @@ tools/polymarket_discovery/configs
 
 # Agents
 .claude/
+
+# playwright
+.playwright-cli/

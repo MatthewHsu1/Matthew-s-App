@@ -5,9 +5,11 @@ import time
 from dataclasses import dataclass
 from typing import Any, Mapping
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlparse
 from urllib.request import Request
 import urllib.request
+
+from .rate_limiter import RateLimiter, get_default_limiter
 
 
 RETRYABLE_STATUS_CODES = frozenset({429, 500, 502, 503, 504})
@@ -37,15 +39,23 @@ def request_json(
     payload: Mapping[str, Any] | None = None,
     headers: Mapping[str, str] | None = None,
     retryable_status_codes: frozenset[int] = RETRYABLE_STATUS_CODES,
+    limiter: RateLimiter | None = None,
 ) -> Any:
     encoded_payload = json.dumps(dict(payload)).encode("utf-8") if payload is not None else None
     request_headers = dict(headers or {})
     if encoded_payload is not None and "Content-Type" not in request_headers:
         request_headers["Content-Type"] = "application/json"
 
+    _limiter = limiter if limiter is not None else get_default_limiter()
+    host = urlparse(url).hostname or ""
+
     last_error: Exception | None = None
+
     for attempt in range(retry.max_attempts):
+        _limiter.acquire(host)
+
         request = Request(url, data=encoded_payload, headers=request_headers, method=method)
+
         try:
             with urllib.request.urlopen(request, timeout=timeout_seconds) as response:
                 raw = response.read().decode("utf-8")
@@ -60,9 +70,11 @@ def request_json(
             last_error = exc
 
         sleep_seconds = retry.backoff_seconds * (retry.backoff_factor**attempt)
+
         if sleep_seconds > 0:
             time.sleep(sleep_seconds)
 
     if last_error is not None:
         raise last_error
+    
     raise RuntimeError("request retry loop exited unexpectedly")
