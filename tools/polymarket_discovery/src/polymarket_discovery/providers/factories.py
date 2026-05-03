@@ -9,6 +9,8 @@ from .embeddings import HTTPEmbeddingProvider, StubEmbeddingProvider
 from .llm_codex import CodexCliLLMProvider, SubprocessCodexInvoker
 from .llm_openai import OpenAICompatibleLLMProvider
 from .llm_stub import DeepSeekLLMProviderStub
+from .openai_invoker import RequestJsonOpenAIInvoker
+from .openai_invoker_logging import LoggingOpenAIInvoker
 from .settings import (
     get_inferencer_params,
     resolve_embedding_settings,
@@ -41,7 +43,10 @@ def build_llm_provider(
     if settings.provider_name in {"stub", "deterministic"}:
         return DeepSeekLLMProviderStub(model_name=settings.model_name)
     if settings.provider_name in {"deepseek", "openai-compatible", "openai_compatible", "vllm_openai", "vllm-openai", "vllm", "http"}:
-        return OpenAICompatibleLLMProvider(settings=settings)
+        return OpenAICompatibleLLMProvider(
+            settings=settings,
+            invoker=LoggingOpenAIInvoker(inner=RequestJsonOpenAIInvoker(settings=settings)),
+        )
     if settings.provider_name == "codex":
         return CodexCliLLMProvider(
             settings=settings,

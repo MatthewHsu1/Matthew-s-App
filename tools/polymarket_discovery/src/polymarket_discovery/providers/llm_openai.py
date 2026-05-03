@@ -1,15 +1,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Sequence
+from typing import Sequence
 
 from ..contracts import MarketDescriptor
 from ..interfaces.llm_basket_group import LLMBasketGroup
 from ..interfaces.llm_dependency_prediction import LLMDependencyPrediction
 from ..interfaces.llm_provider import LLMProvider
 from ..interfaces.market_pair import MarketPair
-from ..net.http_json import request_json
-from ..utils.coercion import is_local_endpoint
+from ..interfaces.openai_invoker import OpenAIInvoker
 from .llm_codec import (
     build_basket_prompt,
     build_batched_dependency_prompt,
@@ -42,12 +41,7 @@ _BATCHED_DEPENDENCY_SYSTEM_PROMPT = (
 @dataclass(slots=True)
 class OpenAICompatibleLLMProvider(LLMProvider):
     settings: LLMProviderSettings
-
-    def __post_init__(self) -> None:
-        if not self.settings.base_url:
-            raise ValueError("base_url is required for non-stub llm providers")
-        if not self.settings.api_key and not is_local_endpoint(self.settings.base_url):
-            raise ValueError("api_key is required for non-local llm providers")
+    invoker: OpenAIInvoker
 
     def infer_dependencies_batched(
         self,
@@ -56,12 +50,8 @@ class OpenAICompatibleLLMProvider(LLMProvider):
         """Infer dependency metadata for a batch of market pairs in a single HTTP call."""
         if not pairs:
             return []
-        payload = request_json(
-            url=self.settings.base_url,
-            timeout_seconds=self.settings.timeout_seconds,
-            retry=self.settings.retry,
-            method="POST",
-            payload={
+        result = self.invoker.call(
+            {
                 "model": self.settings.model_name,
                 "temperature": self.settings.temperature,
                 "max_tokens": self.settings.max_tokens,
@@ -76,14 +66,9 @@ class OpenAICompatibleLLMProvider(LLMProvider):
                         "content": build_batched_dependency_prompt(pairs),
                     },
                 ],
-            },
-            headers={
-                "User-Agent": "polymarket-discovery/0.1",
-                **({"Authorization": f"Bearer {self.settings.api_key}"} if self.settings.api_key else {}),
-            },
+            }
         )
-        content = self._extract_message_content(payload)
-        return parse_batched_dependency_predictions(content, expected_count=len(pairs))
+        return parse_batched_dependency_predictions(result.content, expected_count=len(pairs))
 
     def infer_basket_groups(
         self,
@@ -93,12 +78,8 @@ class OpenAICompatibleLLMProvider(LLMProvider):
         if len(markets) < 2:
             return []
         known_ids = frozenset(m.market_id for m in markets)
-        payload = request_json(
-            url=self.settings.base_url,
-            timeout_seconds=self.settings.timeout_seconds,
-            retry=self.settings.retry,
-            method="POST",
-            payload={
+        result = self.invoker.call(
+            {
                 "model": self.settings.model_name,
                 "temperature": self.settings.temperature,
                 "max_tokens": self.settings.max_tokens,
@@ -113,34 +94,6 @@ class OpenAICompatibleLLMProvider(LLMProvider):
                         "content": build_basket_prompt(markets),
                     },
                 ],
-            },
-            headers={
-                "User-Agent": "polymarket-discovery/0.1",
-                **({"Authorization": f"Bearer {self.settings.api_key}"} if self.settings.api_key else {}),
-            },
+            }
         )
-        content = self._extract_message_content(payload)
-        return parse_llm_basket_groups(content, known_market_ids=known_ids)
-
-    @staticmethod
-    def _extract_message_content(payload: Any) -> str:
-        if not isinstance(payload, dict):
-            raise ValueError("LLM response payload must be a JSON object")
-
-        choices = payload.get("choices")
-        if not isinstance(choices, list) or not choices:
-            raise ValueError("LLM response payload must include choices")
-        first_choice = choices[0]
-        if not isinstance(first_choice, dict):
-            raise ValueError("LLM response payload has an invalid first choice")
-
-        message = first_choice.get("message")
-        if not isinstance(message, dict):
-            raise ValueError("LLM response payload must include message content")
-
-        content = message.get("content")
-        if isinstance(content, str):
-            cleaned = content.strip()
-            if cleaned:
-                return cleaned
-        raise ValueError("LLM response payload must include a non-empty string content field")
+        return parse_llm_basket_groups(result.content, known_market_ids=known_ids)
