@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Sequence
 
 from .config import ensure_artifact_dir, generate_run_id, load_config
+from .utils.jsonl_logging import setup_jsonl_logging
 from .utils.logging_utils import JsonlStageLogger
 from .pipeline import PipelineComponents, build_default_components, run_pipeline, write_run_artifact
 
@@ -23,6 +24,7 @@ def run_command(config_path: str | Path, components: PipelineComponents | None =
     config = load_config(config_path)
     run_id = generate_run_id(config)
     artifact_dir = ensure_artifact_dir(config, run_id)
+    setup_jsonl_logging(path=artifact_dir / "stages.jsonl", run_id=run_id)
     stage_logger = JsonlStageLogger(path=artifact_dir / "stages.jsonl", run_id=run_id)
 
     stage_logger.log(
