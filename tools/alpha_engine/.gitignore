@@ -1,0 +1,9 @@
+envs/*
+!envs/.gitkeep
+.venv/
+*.egg-info/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+.coverage
+.KILL

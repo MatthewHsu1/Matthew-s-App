@@ -1,0 +1,16 @@
+{
+  "env_name": "REPLACE",
+  "mode": "backtest",
+  "strategy": {
+    "ref": "toy_buy_and_hold",
+    "params": { "qty": 10, "buy_on_bar": 3 }
+  },
+  "venue": { "id": "nasdaq_sim", "account_kind": "paper" },
+  "data": {
+    "live_source": "venue",
+    "historical_source": "synthetic_fixture",
+    "instruments": ["MSFT.NASDAQ"]
+  },
+  "risk": {},
+  "reporting": { "timezone": "UTC" }
+}
