@@ -3,10 +3,9 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 import pandas as pd
-import pytest
 
 # Importing the sources package triggers @data_source registration.
-import alpha_engine.data.sources  # noqa: F401
+import alpha_engine.data.sources  # noqa: F401  # pyright: ignore[reportUnusedImport]
 from alpha_engine.data.registry import default_registry
 
 

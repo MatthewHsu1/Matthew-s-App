@@ -34,4 +34,4 @@ package-dir = {"" = "src"}
 where = ["src"]
 
 [tool.setuptools.package-data]
-alpha_engine = ["config/schema/*.json", "configs/templates/*.json"]
+alpha_engine = ["py.typed", "config/schema/*.json", "configs/templates/*.json"]
