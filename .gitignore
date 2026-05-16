@@ -145,3 +145,6 @@ tools/polymarket_discovery/configs
 
 # playwright
 .playwright-cli/
+
+# VS Code C# Dev Kit language server cache
+*.lscache
