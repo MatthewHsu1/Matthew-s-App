@@ -20,6 +20,7 @@ def valid_config_dict():
             "live_source": "venue",
             "historical_source": "fixture_catalog",
             "instruments": ["MSFT.NASDAQ"],
+            "bar_spec": "1-DAY-LAST",
         },
         "risk": {
             "max_position_usd": 25000,

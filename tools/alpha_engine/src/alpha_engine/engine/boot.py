@@ -204,3 +204,17 @@ def _build_pnl_daily(fills: list[TradeRecord]):
                     open_lots[f.instrument_id][0] = (buy_qty, buy_px)
     rows = [{"date": k, "net_pnl": v} for k, v in sorted(by_day.items())]
     return pd.DataFrame(rows)
+
+
+def dispatch_mode(cfg: EnvConfig):
+    """Return the boot function for the given mode."""
+    if cfg.mode is Mode.BACKTEST:
+        return run_backtest
+    if cfg.mode is Mode.PAPER:
+        from alpha_engine.engine.paper import run_paper
+        return run_paper
+    if cfg.mode is Mode.LIVE:
+        raise NotImplementedError(
+            f"mode=live is Phase 3, not Phase 2. env={cfg.env_name}"
+        )
+    raise ValueError(f"unknown mode {cfg.mode!r}")

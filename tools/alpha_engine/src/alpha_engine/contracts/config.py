@@ -16,6 +16,12 @@ class StrategyConfig:
 class VenueConfig:
     id: str
     account_kind: str  # "paper" | "live" — validated by loader, not here
+    gateway_host: str = "host-gateway"
+    gateway_port_paper: int = 4002
+    gateway_port_live: int = 4001
+    account_id_env: str = "IBKR_ACCOUNT_ID"
+    username_env: str = "IBKR_USERNAME"
+    password_env: str = "IBKR_PASSWORD"
 
 
 @dataclass(frozen=True)
@@ -23,6 +29,8 @@ class DataConfig:
     live_source: str
     historical_source: str
     instruments: tuple[str, ...]
+    bar_spec: str = "1-DAY-LAST"
+    lookback_days: int = 365
 
 
 @dataclass(frozen=True)

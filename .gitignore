@@ -148,3 +148,9 @@ tools/polymarket_discovery/configs
 
 # VS Code C# Dev Kit language server cache
 *.lscache
+
+# Alpha engine Phase 2
+tools/alpha_engine/cache/historical/
+tools/alpha_engine/cache/.locks/
+tools/alpha_engine/envs/*/secrets.env
+tools/alpha_engine/envs/*/.KILL

@@ -1,0 +1,34 @@
+# IBKR Gateway containers for the alpha engine.
+# Usage:
+#   docker compose --env-file ../envs/<env_name>/secrets.env up ib-gateway-paper
+#   docker compose --env-file ../envs/<env_name>/secrets.env --profile live up ib-gateway-live
+
+services:
+  ib-gateway-paper:
+    image: gnzsnz/ib-gateway:stable
+    container_name: alpha-engine-ibgw-paper
+    restart: unless-stopped
+    environment:
+      TRADING_MODE: paper
+      TWS_USERID: ${IBKR_USERNAME}
+      TWS_PASSWORD: ${IBKR_PASSWORD}
+      READ_ONLY_API: "no"
+    ports:
+      - "127.0.0.1:4002:4002"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  ib-gateway-live:
+    image: gnzsnz/ib-gateway:stable
+    container_name: alpha-engine-ibgw-live
+    restart: unless-stopped
+    profiles: ["live"]
+    environment:
+      TRADING_MODE: live
+      TWS_USERID: ${IBKR_USERNAME}
+      TWS_PASSWORD: ${IBKR_PASSWORD}
+      READ_ONLY_API: "no"
+    ports:
+      - "127.0.0.1:4001:4001"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
