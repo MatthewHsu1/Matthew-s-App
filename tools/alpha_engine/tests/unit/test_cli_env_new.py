@@ -9,8 +9,6 @@ from alpha_engine.cli_commands import env_new
 
 
 def test_creates_env_dir_with_config_and_dirs(tmp_path: Path, monkeypatch):
-    tmpl_dir = tmp_path / "templates"
-    tmpl_dir.mkdir()
     template = {
         "env_name": "REPLACE",
         "mode": "backtest",
@@ -21,9 +19,9 @@ def test_creates_env_dir_with_config_and_dirs(tmp_path: Path, monkeypatch):
         "risk": {},
         "reporting": {"timezone": "UTC"},
     }
-    (tmpl_dir / "backtest.json").write_text(json.dumps(template), encoding="utf-8")
-
-    monkeypatch.setattr(env_new, "_templates_dir", lambda: tmpl_dir)
+    monkeypatch.setattr(
+        env_new, "_read_template", lambda name: json.dumps(template) if name == "backtest" else None
+    )
 
     envs_root = tmp_path / "envs"
     rc = env_new.run(envs_root=envs_root, name="my_env", template="backtest")
@@ -41,10 +39,7 @@ def test_creates_env_dir_with_config_and_dirs(tmp_path: Path, monkeypatch):
 
 
 def test_refuses_to_overwrite_existing(tmp_path: Path, monkeypatch):
-    tmpl_dir = tmp_path / "templates"
-    tmpl_dir.mkdir()
-    (tmpl_dir / "backtest.json").write_text("{}", encoding="utf-8")
-    monkeypatch.setattr(env_new, "_templates_dir", lambda: tmpl_dir)
+    monkeypatch.setattr(env_new, "_read_template", lambda name: "{}")
 
     envs_root = tmp_path / "envs"
     (envs_root / "my_env").mkdir(parents=True)

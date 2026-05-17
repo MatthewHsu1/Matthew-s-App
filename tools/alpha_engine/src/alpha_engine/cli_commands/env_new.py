@@ -7,8 +7,11 @@ from pathlib import Path
 from alpha_engine.config.paths import EnvPaths
 
 
-def _templates_dir() -> Path:
-    return Path(str(resources.files("alpha_engine"))) / ".." / ".." / "configs" / "templates"
+def _read_template(name: str) -> str | None:
+    res = resources.files("alpha_engine.configs.templates").joinpath(f"{name}.json")
+    if not res.is_file():
+        return None
+    return res.read_text(encoding="utf-8")
 
 
 def run(*, envs_root: Path, name: str, template: str) -> int:
@@ -17,13 +20,16 @@ def run(*, envs_root: Path, name: str, template: str) -> int:
         print(f"error: env {name!r} already exists at {paths.env_dir}", flush=True)
         return 1
 
-    tmpl_path = (_templates_dir() / f"{template}.json").resolve()
-    if not tmpl_path.exists():
-        print(f"error: template {template!r} not found at {tmpl_path}", flush=True)
+    template_text = _read_template(template)
+    if template_text is None:
+        print(
+            f"error: template {template!r} not found in alpha_engine.configs.templates",
+            flush=True,
+        )
         return 1
 
     paths.ensure_dirs()
-    raw = json.loads(tmpl_path.read_text(encoding="utf-8"))
+    raw = json.loads(template_text)
     raw["env_name"] = name
     paths.config_path.write_text(json.dumps(raw, indent=2), encoding="utf-8")
     paths.secrets_path.write_text(

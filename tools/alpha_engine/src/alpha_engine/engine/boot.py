@@ -113,9 +113,17 @@ def run_backtest(
         # Strategy instantiation: Nautilus strategy configs take instrument_id,
         # so we splice it from the env config's first instrument.
         from alpha_engine.strategies.toy_buy_and_hold import ToyBuyAndHoldParams
+        from alpha_engine.strategies.bband_volume_setup.strategy import (
+            BBandVolumeSetupNautilusParams,
+        )
         if cfg.strategy.ref == "toy_buy_and_hold":
             params = ToyBuyAndHoldParams(
                 instrument_id=cfg.data.instruments[0],
+                **cfg.strategy.params,
+            )
+        elif cfg.strategy.ref == "bband_volume_setup":
+            params = BBandVolumeSetupNautilusParams(
+                instrument_ids=list(cfg.data.instruments),
                 **cfg.strategy.params,
             )
         else:
