@@ -44,7 +44,7 @@ def _make_cfg(
         venue=VenueConfig(id="nasdaq_sim", account_kind="paper"),
         data=DataConfig(
             live_source="venue",
-            historical_source="alpaca_historical_stub",
+            historical_source="alpaca_historical",
             instruments=instruments,
             bar_spec="1-DAY-LAST",
             start_date=start,
@@ -56,7 +56,7 @@ def _make_cfg(
 
 
 class _CountingStubSource:
-    """A registered fake `alpaca_historical_stub` source.
+    """A registered fake `alpaca_historical` source.
 
     Returns deterministic OHLCV for daily and minute bar_specs. Tracks calls.
     """
@@ -108,13 +108,12 @@ def stub_registered(monkeypatch):
     # We register a class that returns a fresh instance each construction.
     _CountingStubSource.instances = []
     cls = type("StubSourceCls", (_CountingStubSource,), {})
-    # Make sure not already there.
-    if "alpaca_historical_stub" in registry_mod.default_registry._classes:
-        del registry_mod.default_registry._classes["alpaca_historical_stub"]
-    registry_mod.default_registry.register("alpaca_historical_stub", cls)
+    saved = registry_mod.default_registry.get("alpaca_historical") \
+        if "alpaca_historical" in registry_mod.default_registry.list() else None
+    registry_mod.default_registry.replace("alpaca_historical", cls)
     yield cls
-    if "alpaca_historical_stub" in registry_mod.default_registry._classes:
-        del registry_mod.default_registry._classes["alpaca_historical_stub"]
+    if saved is not None:
+        registry_mod.default_registry.replace("alpaca_historical", saved)
 
 
 def test_builds_engine_with_one_instrument_two_bar_streams(
@@ -179,6 +178,26 @@ def test_second_call_hits_cache_no_resource_recall(
     assert second_call_count == 0, (
         f"Second build should hit cache; saw {second_call_count} source calls"
     )
+
+
+def test_bare_symbol_for_source_unknown_raises_not_implemented() -> None:
+    """An unwired source must fail loud rather than silently passing the wrong string."""
+    from nautilus_trader.model.identifiers import InstrumentId
+
+    from alpha_engine.engine.cache_loader import _bare_symbol_for_source
+
+    iid = InstrumentId.from_str("MSFT.NASDAQ")
+    with pytest.raises(NotImplementedError, match="ibkr_historical"):
+        _bare_symbol_for_source("ibkr_historical", iid)
+
+
+def test_bare_symbol_for_source_alpaca_returns_bare_ticker() -> None:
+    from nautilus_trader.model.identifiers import InstrumentId
+
+    from alpha_engine.engine.cache_loader import _bare_symbol_for_source
+
+    iid = InstrumentId.from_str("MSFT.NASDAQ")
+    assert _bare_symbol_for_source("alpaca_historical", iid) == "MSFT"
 
 
 def test_dataframe_to_bar_preserves_ohlcv_and_ts(

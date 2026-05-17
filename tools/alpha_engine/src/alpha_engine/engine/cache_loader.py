@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Tuple
 
 import pandas as pd
+from nautilus_trader.model.identifiers import InstrumentId
 
 from alpha_engine.config.paths import EnvPaths
 from alpha_engine.contracts.config import EnvConfig
@@ -66,17 +67,18 @@ def _venue_for_source(source_id: str, fallback: str) -> str:
     return fallback
 
 
-def _bare_symbol_for_source(source_id: str, raw_symbol: str) -> str:
-    """The symbol string to pass to the source's fetch().
+def _bare_symbol_for_source(source_id: str, instrument_id: InstrumentId) -> str:
+    """Return the instrument identifier expected by the named source.
 
-    Alpaca's API only knows bare symbols (no venue suffix); IBKR's
-    historical source already takes the full instrument_id. Adjust as we
-    onboard more sources.
+    Alpaca's StockHistoricalDataClient wants a bare ticker like "MSFT".
+    Other sources will need their own translation when wired in.
     """
     if source_id == "alpaca_historical":
-        return raw_symbol
-    # Default: send what the cache layer was keyed on.
-    return raw_symbol
+        return instrument_id.symbol.value
+    raise NotImplementedError(
+        f"cache_loader does not yet know how to translate "
+        f"{instrument_id!r} for source {source_id!r}"
+    )
 
 
 def _df_to_bars(df: pd.DataFrame, bar_type) -> list:
@@ -121,7 +123,7 @@ def build_engine_from_cache(
         OmsType,
         PriceType,
     )
-    from nautilus_trader.model.identifiers import InstrumentId, Symbol, Venue
+    from nautilus_trader.model.identifiers import Symbol, Venue
     from nautilus_trader.model.instruments import Equity
     from nautilus_trader.model.objects import Money, Price, Quantity
 
@@ -180,7 +182,7 @@ def build_engine_from_cache(
         instrument_ids.append(instrument_id)
 
         cache_venue = _venue_for_source(cfg.data.historical_source, str(venue))
-        cache_symbol = _bare_symbol_for_source(cfg.data.historical_source, bare_symbol)
+        cache_symbol = _bare_symbol_for_source(cfg.data.historical_source, instrument_id)
 
         for bar_spec_str in _REQUIRED_BAR_SPECS:
             df = cache.fetch(

@@ -55,3 +55,22 @@ def test_list_returns_registered_ids():
 def test_default_registry_is_module_level_singleton():
     from alpha_engine.data.registry import default_registry
     assert isinstance(default_registry, DataSourceRegistry)
+
+
+def test_replace_upserts_entry():
+    """replace() is a test-injection seam: works whether or not the id exists."""
+    reg = DataSourceRegistry()
+
+    class A:
+        pass
+
+    class B:
+        pass
+
+    # Upsert into empty registry.
+    reg.replace("svc", A)
+    assert reg.get("svc") is A
+
+    # Replace existing without raising.
+    reg.replace("svc", B)
+    assert reg.get("svc") is B

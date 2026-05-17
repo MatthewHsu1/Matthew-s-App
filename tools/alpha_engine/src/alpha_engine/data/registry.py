@@ -19,6 +19,10 @@ class DataSourceRegistry:
             raise ValueError(f"data_source id {source_id!r} already registered")
         self._classes[source_id] = cls
 
+    def replace(self, source_id: str, cls: type) -> None:
+        """Upsert a registration. Test-injection seam; not for production wiring."""
+        self._classes[source_id] = cls
+
     def get(self, source_id: str) -> type:
         try:
             return self._classes[source_id]

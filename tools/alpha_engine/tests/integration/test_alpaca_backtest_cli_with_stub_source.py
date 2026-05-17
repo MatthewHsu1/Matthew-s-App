@@ -52,15 +52,15 @@ class _StubAlpacaSource:
 @pytest.fixture
 def stub_alpaca_source():
     """Swap the registered alpaca_historical class for the test duration."""
-    saved = default_registry._classes.get("alpaca_historical")
-    if "alpaca_historical" in default_registry._classes:
-        del default_registry._classes["alpaca_historical"]
-    default_registry.register("alpaca_historical", _StubAlpacaSource)
+    saved = (
+        default_registry.get("alpaca_historical")
+        if "alpaca_historical" in default_registry.list()
+        else None
+    )
+    default_registry.replace("alpaca_historical", _StubAlpacaSource)
     yield
-    if "alpaca_historical" in default_registry._classes:
-        del default_registry._classes["alpaca_historical"]
     if saved is not None:
-        default_registry.register("alpaca_historical", saved)
+        default_registry.replace("alpaca_historical", saved)
 
 
 def test_env_start_with_alpaca_historical_writes_reports(
