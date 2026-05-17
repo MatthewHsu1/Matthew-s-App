@@ -5,6 +5,7 @@ from pathlib import Path
 
 from alpha_engine.config.loader import load_env_config, ConfigError
 from alpha_engine.config.paths import EnvPaths
+from alpha_engine.config.secrets import load_secrets_file
 from alpha_engine.contracts.mode import Mode
 from alpha_engine.strategies import default_registry  # noqa: F401  (triggers registration)
 
@@ -19,6 +20,10 @@ def run(*, envs_root: Path, name: str) -> int:
     except ConfigError as exc:
         print(f"config error: {exc}", flush=True)
         return 1
+    # Real historical sources (Alpaca, IBKR) read API creds from os.environ.
+    # Backtest mode never went through paper.py's secrets load, so we do it here.
+    # No-op when secrets.env is missing; existing env vars are not overwritten.
+    load_secrets_file(paths.secrets_path)
 
     from alpha_engine.engine.boot import dispatch_mode
 

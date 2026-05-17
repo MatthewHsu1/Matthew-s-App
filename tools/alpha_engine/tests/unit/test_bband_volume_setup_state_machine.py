@@ -306,3 +306,27 @@ class TestExits:
         assert intent.kind is IntentKind.EXIT_ALL
         assert "max_hold" in intent.reason
         assert sm.state_of("AAPL") is SymbolState.EXITED
+
+    def test_day6_bar_after_day5_exits_via_max_hold(self) -> None:
+        """Nautilus has no explicit session-close event, so the next daily bar
+        after DAY5_FINAL acts as the session-end trigger."""
+        sm, day2_ts = _advance_to_day2_active()
+        for offset in (1, 2, 3):
+            sm.on_daily_bar(
+                DailyBar(
+                    symbol="AAPL", ts=day2_ts + timedelta(days=offset),
+                    open=97.5, high=97.5, low=97.5, close=97.5,
+                    volume=1_000_000,
+                )
+            )
+        assert sm.state_of("AAPL") is SymbolState.DAY5_FINAL
+
+        day6 = DailyBar(
+            symbol="AAPL", ts=day2_ts + timedelta(days=4),
+            open=97.5, high=97.5, low=97.5, close=97.5,
+            volume=1_000_000,
+        )
+        intent = sm.on_daily_bar(day6)
+        assert intent.kind is IntentKind.EXIT_ALL
+        assert "max_hold" in intent.reason
+        assert sm.state_of("AAPL") is SymbolState.EXITED

@@ -133,6 +133,14 @@ class BBandVolumeSetupStateMachine:
             return self._maybe_detect_setup(book, bar)
         if book.state is SymbolState.SETUP_DETECTED:
             return self._handle_day2(book, bar)
+        # Day 5 has elapsed by the time Day 6's bar arrives. Nautilus does
+        # not emit explicit session-close events, so the next daily bar after
+        # DAY5_FINAL is the session-end trigger for max_hold exits.
+        if book.state is SymbolState.DAY5_FINAL:
+            book.state = SymbolState.EXITED
+            return Intent(
+                kind=IntentKind.EXIT_ALL, symbol=bar.symbol, reason="max_hold_days"
+            )
         # In-position day advance: each new daily bar advances the day counter.
         next_state = {
             SymbolState.DAY2_ACTIVE: SymbolState.DAY3_SCALING,
