@@ -25,19 +25,19 @@ def run(*, envs_root: Path, name: str) -> int:
     fn = dispatch_mode(cfg)
 
     if cfg.mode is Mode.BACKTEST:
-        # Backtest still uses the synthetic fixture loader pattern from Phase 1.
-        if cfg.data.historical_source != "synthetic_fixture":
-            print(
-                f"error: backtest with historical_source={cfg.data.historical_source!r} "
-                "not yet wired through the cache. Use synthetic_fixture for now or "
-                "wait for the data-source registry integration.",
-                flush=True,
+        if cfg.data.historical_source == "synthetic_fixture":
+            from alpha_engine.data.sources.synthetic_fixture import (
+                build_engine_with_synthetic_bars,
             )
-            return 3
-        from alpha_engine.data.sources.synthetic_fixture import build_engine_with_synthetic_bars
 
-        def loader(_cfg, _paths):
-            return build_engine_with_synthetic_bars()
+            def loader(_cfg, _paths):
+                return build_engine_with_synthetic_bars()
+        else:
+            # Real historical sources route through the Parquet cache.
+            from alpha_engine.engine.cache_loader import build_engine_from_cache
+
+            def loader(_cfg, _paths):
+                return build_engine_from_cache(_cfg, _paths)
 
         result = fn(cfg=cfg, paths=paths, data_loader=loader)
         print(f"run_id={result.run_id}", flush=True)
