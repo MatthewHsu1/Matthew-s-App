@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime
 from importlib import resources
 from pathlib import Path
 from typing import Any
@@ -63,6 +64,31 @@ def load_env_config(path: str | Path) -> EnvConfig:
             "Opt-in safety is unsafety."
         )
 
+    start_date = raw["data"].get("start_date")
+    end_date = raw["data"].get("end_date")
+    if mode is Mode.BACKTEST and historical != "synthetic_fixture":
+        if not start_date:
+            raise ConfigError(
+                f"mode=backtest with historical_source={historical!r} requires "
+                "data.start_date (YYYY-MM-DD)."
+            )
+        if not end_date:
+            raise ConfigError(
+                f"mode=backtest with historical_source={historical!r} requires "
+                "data.end_date (YYYY-MM-DD)."
+            )
+        try:
+            sd = datetime.strptime(start_date, "%Y-%m-%d")
+            ed = datetime.strptime(end_date, "%Y-%m-%d")
+        except ValueError as exc:
+            raise ConfigError(
+                f"data.start_date/end_date must be YYYY-MM-DD: {exc}"
+            ) from exc
+        if ed < sd:
+            raise ConfigError(
+                f"data.end_date ({end_date}) must be on or after start_date ({start_date})."
+            )
+
     return EnvConfig(
         env_name=raw["env_name"],
         mode=mode,
@@ -86,6 +112,8 @@ def load_env_config(path: str | Path) -> EnvConfig:
             instruments=tuple(raw["data"]["instruments"]),
             bar_spec=raw["data"].get("bar_spec", "1-DAY-LAST"),
             lookback_days=raw["data"].get("lookback_days", 365),
+            start_date=start_date,
+            end_date=end_date,
         ),
         risk=RiskConfig(
             max_position_usd=risk_raw.get("max_position_usd"),

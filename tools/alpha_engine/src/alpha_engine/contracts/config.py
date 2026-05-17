@@ -31,6 +31,9 @@ class DataConfig:
     instruments: tuple[str, ...]
     bar_spec: str = "1-DAY-LAST"
     lookback_days: int = 365
+    # ISO YYYY-MM-DD; required when mode=backtest with a non-synthetic source.
+    start_date: str | None = None
+    end_date: str | None = None
 
 
 @dataclass(frozen=True)

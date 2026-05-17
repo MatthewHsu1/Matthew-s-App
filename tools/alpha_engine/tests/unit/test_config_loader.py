@@ -18,7 +18,7 @@ def valid_config_dict():
         "venue": {"id": "ibkr", "account_kind": "paper"},
         "data": {
             "live_source": "venue",
-            "historical_source": "fixture_catalog",
+            "historical_source": "synthetic_fixture",
             "instruments": ["MSFT.NASDAQ"],
             "bar_spec": "1-DAY-LAST",
         },
