@@ -20,6 +20,7 @@ class OrderProbe:
         # Phase 1: USD-denominated equities. Refine when other ccys arrive.
         if self.limit_price is None:
             raise ValueError("notional requires limit_price; pass last quote for market orders")
+        
         return abs(self.quantity * self.limit_price)
 
 

@@ -34,6 +34,8 @@ class KillSwitchWatcher:
         write_summary: Callable[[str], None],
     ) -> None:
         cancel_all()
+
         if self._flatten:
             flatten()
+            
         write_summary("kill_switch")

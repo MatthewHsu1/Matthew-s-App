@@ -10,7 +10,7 @@ from alpha_engine.strategies.registry import strategy
 
 
 # StrategyConfig is a msgspec.Struct — do NOT apply @dataclass; just subclass directly.
-class ToyBuyAndHoldParams(StrategyConfig, kw_only=True):
+class ToyBuyAndHoldParams(StrategyConfig):
     instrument_id: str
     qty: int = 10
     buy_on_bar: int = 5

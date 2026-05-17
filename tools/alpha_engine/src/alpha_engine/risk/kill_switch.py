@@ -14,6 +14,7 @@ def make_kill_switch_check(*, paths: Iterable[Path]) -> PreTradeCheck:
     def check(probe: OrderProbe, ctx: RiskContext) -> Decision:
         if is_kill_switch_set(watched):
             return Decision.block("kill_switch active: refusing to submit orders")
+        
         return Decision.allow()
 
     check.name = "kill_switch"  # type: ignore[attr-defined]

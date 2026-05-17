@@ -86,6 +86,7 @@ class AlphaOrderGate:
             quantity=float(cmd.quantity),
             limit_price=float(cmd.limit_price) if cmd.limit_price is not None else None,
         )
+        
         ctx = self._context_provider()
         outcome = gate_decision(probe, ctx, self._checks)
 

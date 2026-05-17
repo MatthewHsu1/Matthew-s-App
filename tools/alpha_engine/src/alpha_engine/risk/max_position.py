@@ -11,12 +11,15 @@ def make_max_position_check(*, max_usd: float) -> PreTradeCheck:
     def check(probe: OrderProbe, ctx: RiskContext) -> Decision:
         if probe.side == "SELL":
             return Decision.allow()
+        
         existing = ctx.position_usd(probe.instrument_id)
         projected = existing + probe.notional_usd()
+        
         if projected > max_usd:
             return Decision.block(
                 f"max_position exceeded: projected ${projected:,.2f} > cap ${max_usd:,.2f}"
             )
+        
         return Decision.allow()
 
     check.name = "max_position"  # type: ignore[attr-defined]
