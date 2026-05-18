@@ -17,7 +17,7 @@ from alpha_engine.contracts.config import (
 from alpha_engine.contracts.mode import Mode
 from alpha_engine.data.sources.synthetic_fixture import build_engine_with_synthetic_bars
 from alpha_engine.engine.backtest import run_backtest
-from alpha_engine.strategies import default_registry  # noqa: F401  (triggers registration)
+import alpha_engine.strategies.toy_buy_and_hold  # noqa: F401  (triggers @strategy registration)
 
 
 def _data_loader(cfg, paths):

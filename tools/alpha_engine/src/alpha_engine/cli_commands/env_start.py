@@ -6,7 +6,7 @@ from alpha_engine.config.loader import ConfigError, load_env_config
 from alpha_engine.config.paths import EnvPaths
 from alpha_engine.config.secrets import load_secrets_file
 from alpha_engine.contracts.mode import Mode
-from alpha_engine.strategies import default_registry  # noqa: F401  (triggers registration)
+import alpha_engine.strategies.toy_buy_and_hold  # noqa: F401  (triggers @strategy registration)
 
 
 def _resolve_data_loader_for_backtest(cfg):
