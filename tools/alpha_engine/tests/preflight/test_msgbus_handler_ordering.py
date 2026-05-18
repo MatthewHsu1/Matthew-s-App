@@ -6,8 +6,6 @@ Pivot decision required — see spec §3 decision #4. STOP and surface.
 """
 from __future__ import annotations
 
-import pytest
-
 from nautilus_trader.common.component import MessageBus, TestClock
 from nautilus_trader.model.identifiers import TraderId
 

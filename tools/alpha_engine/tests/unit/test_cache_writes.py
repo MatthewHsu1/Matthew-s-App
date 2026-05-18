@@ -1,13 +1,11 @@
 from __future__ import annotations
 
-import os
 import threading
 from pathlib import Path
 
 import pandas as pd
-import pytest
 
-from alpha_engine.data.cache import HistoricalDataCache, _empty_bars_df
+from alpha_engine.data.cache import HistoricalDataCache
 from alpha_engine.data.registry import DataSourceRegistry
 
 

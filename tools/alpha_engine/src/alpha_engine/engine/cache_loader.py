@@ -17,17 +17,15 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Tuple
 
 import pandas as pd
 from nautilus_trader.model.identifiers import InstrumentId
 
+import alpha_engine.data.sources  # noqa: F401  (triggers source registrations)
 from alpha_engine.config.paths import EnvPaths
 from alpha_engine.contracts.config import EnvConfig
 from alpha_engine.data.cache import HistoricalDataCache
 from alpha_engine.data.registry import default_registry
-import alpha_engine.data.sources  # noqa: F401  (triggers source registrations)
-
 
 # Bar specs the bband_volume_setup strategy consumes. Daily for the state
 # machine's setup detection; 1-minute for entry/exit triggers.
@@ -106,7 +104,7 @@ def _df_to_bars(df: pd.DataFrame, bar_type) -> list:
 
 def build_engine_from_cache(
     cfg: EnvConfig, paths: EnvPaths
-) -> Tuple["object", list]:
+) -> tuple[object, list]:
     """Build a BacktestEngine populated with cached historical bars.
 
     Returns (engine, [InstrumentId, ...]). The engine has one Venue (parsed

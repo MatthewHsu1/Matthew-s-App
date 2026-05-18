@@ -1,7 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Iterable
 
 from alpha_engine.contracts.decision import Decision
 from alpha_engine.control.kill_switch_file import is_kill_switch_set

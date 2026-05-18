@@ -14,6 +14,6 @@ class CodexInvoker(Protocol):
         *,
         timeout_seconds: float,
         output_schema_path: Path | None = None,
-    ) -> "CodexInvocationResult":
+    ) -> CodexInvocationResult:
         """Run the Codex CLI with the given prompt and return a structured result."""
         ...

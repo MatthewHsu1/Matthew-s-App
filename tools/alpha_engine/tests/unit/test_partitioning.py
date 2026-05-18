@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 
 import pytest
 
-from alpha_engine.data.partitioning import period_for, partitions_between
+from alpha_engine.data.partitioning import partitions_between, period_for
 
 
 def _ts(y, m, d, h=0):

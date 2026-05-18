@@ -7,8 +7,9 @@ test code.
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Tuple
 
+import numpy as np
+import pandas as pd
 from nautilus_trader.backtest.engine import BacktestEngine, BacktestEngineConfig
 from nautilus_trader.model.currencies import USD
 from nautilus_trader.model.data import Bar, BarSpecification, BarType
@@ -23,6 +24,8 @@ from nautilus_trader.model.identifiers import InstrumentId, Symbol, Venue
 from nautilus_trader.model.instruments import Equity
 from nautilus_trader.model.objects import Money, Price, Quantity
 
+from alpha_engine.data.registry import data_source
+
 
 def build_engine_with_synthetic_bars(
     *,
@@ -31,7 +34,7 @@ def build_engine_with_synthetic_bars(
     n_bars: int = 10,
     start_price: float = 100.0,
     step: float = 0.5,
-) -> Tuple[BacktestEngine, list[InstrumentId]]:
+) -> tuple[BacktestEngine, list[InstrumentId]]:
     """Return (engine, [instrument_id]) populated with `n_bars` 1-minute bars."""
     v = Venue(venue)
     instrument = Equity(
@@ -84,12 +87,6 @@ def build_engine_with_synthetic_bars(
         )
     engine.add_data(bars)
     return engine, [instrument.id]
-
-
-import numpy as np
-import pandas as pd
-
-from alpha_engine.data.registry import data_source
 
 
 @data_source("synthetic_fixture")

@@ -4,7 +4,6 @@ import json
 from pathlib import Path
 
 import pandas as pd
-import pytest
 
 from alpha_engine.config.paths import EnvPaths
 from alpha_engine.contracts.config import (

@@ -41,7 +41,7 @@ DEFAULT_LIMITS: dict[str, RateLimit] = {
 class _Bucket:
     """Token-bucket for a single host."""
 
-    __slots__ = ("_rate_per_second", "_burst", "_tokens", "_last_refill", "_lock")
+    __slots__ = ("_burst", "_last_refill", "_lock", "_rate_per_second", "_tokens")
 
     def __init__(self, limit: RateLimit) -> None:
         self._rate_per_second = limit.rate_per_second

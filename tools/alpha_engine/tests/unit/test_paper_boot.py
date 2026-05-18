@@ -6,8 +6,6 @@ integration test is Task 37 (test_paper_mode_with_mock_ibkr.py).
 """
 from __future__ import annotations
 
-import pytest
-
 from alpha_engine.engine import paper as paper_mod
 
 

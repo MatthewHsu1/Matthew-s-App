@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field
 
+
 @dataclass(slots=True)
 class MarketDescriptor:
     market_id: str

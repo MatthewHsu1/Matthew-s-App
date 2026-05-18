@@ -1,9 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
 from pathlib import Path
-
-import pytest
 
 from alpha_engine.data.cache import HistoricalDataCache
 from alpha_engine.data.registry import DataSourceRegistry

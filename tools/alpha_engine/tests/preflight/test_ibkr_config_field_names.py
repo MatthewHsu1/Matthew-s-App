@@ -6,13 +6,10 @@ STOP and surface to the user/parent agent. Do not proceed to downstream tasks.
 from __future__ import annotations
 
 import msgspec
-import pytest
-
 from nautilus_trader.adapters.interactive_brokers.config import (
     InteractiveBrokersDataClientConfig,
     InteractiveBrokersExecClientConfig,
 )
-
 
 # Fields our shim (Task 18) writes. Update this list ONLY if the spec also changes.
 REQUIRED_DATA_FIELDS = {

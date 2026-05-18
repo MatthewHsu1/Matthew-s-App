@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from math import isfinite
-from typing import Any, Sequence
+from typing import Any
 
 from ..contracts import BasketItem
 from ..interfaces.basket_validator import BasketValidator

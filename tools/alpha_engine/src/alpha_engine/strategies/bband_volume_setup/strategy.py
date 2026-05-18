@@ -9,7 +9,6 @@ EXIT_ALL liquidates exactly what was bought across all tranches.
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import List
 
 from nautilus_trader.model.data import Bar, BarSpecification, BarType
 from nautilus_trader.model.enums import (
@@ -37,7 +36,7 @@ class BBandVolumeSetupNautilusParams(StrategyConfig):
     """Config exposed to env.json. Splits Nautilus-level wiring from
     state-machine tunables so the engine can hand it to Nautilus directly."""
 
-    instrument_ids: List[str]
+    instrument_ids: list[str]
     tranche_size_qty: int = 10
     minute_bar_step: int = 5
     # State-machine tunables (all optional; defaults match Phase 2 v0 spec).
@@ -85,7 +84,7 @@ class BBandVolumeSetupStrategy(Strategy):
         self._held_qty: dict[str, int] = {iid: 0 for iid in config.instrument_ids}
 
     def on_start(self) -> None:
-        for iid_str, iid in self._instruments.items():
+        for _iid_str, iid in self._instruments.items():
             self.subscribe_bars(
                 BarType(
                     instrument_id=iid,

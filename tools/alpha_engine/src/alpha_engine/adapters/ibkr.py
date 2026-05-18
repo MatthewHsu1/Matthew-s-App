@@ -5,8 +5,6 @@ If that pre-flight changes, this file must change in lockstep.
 """
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 from nautilus_trader.adapters.interactive_brokers.config import (
     InteractiveBrokersDataClientConfig,
     InteractiveBrokersExecClientConfig,
@@ -56,7 +54,6 @@ class IbkrVenueFactory:
     def data_client_config(
         self, venue_cfg: VenueConfig, mode: Mode
     ) -> InteractiveBrokersDataClientConfig:
-        creds = _resolve_creds(venue_cfg)
         port = _port_for(venue_cfg, mode)
         return InteractiveBrokersDataClientConfig(
             ibg_host=venue_cfg.gateway_host,

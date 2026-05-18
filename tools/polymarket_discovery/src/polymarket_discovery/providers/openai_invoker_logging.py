@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import logging
+from dataclasses import dataclass
 from typing import Any
 
 from ..interfaces.openai_invoker import OpenAIInvoker
 from .openai_invoker import OpenAIInvocationResult
-
 
 logger = logging.getLogger(__name__)
 

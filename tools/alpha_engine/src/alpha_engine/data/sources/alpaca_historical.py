@@ -23,6 +23,7 @@ class _AlpacaClientProto(Protocol):
 def _make_default_client() -> _AlpacaClientProto:
     """Construct the real alpaca-py client. Reads API keys from env."""
     import os
+
     from alpaca.data.historical import StockHistoricalDataClient
 
     api_key = os.environ.get("ALPACA_API_KEY", "")

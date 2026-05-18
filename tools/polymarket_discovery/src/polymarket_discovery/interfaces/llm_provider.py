@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from typing import Protocol, Sequence
+from collections.abc import Sequence
+from typing import Protocol
 
 from ..contracts import MarketDescriptor
-
 from .llm_basket_group import LLMBasketGroup
 from .llm_dependency_prediction import LLMDependencyPrediction
 from .market_pair import MarketPair

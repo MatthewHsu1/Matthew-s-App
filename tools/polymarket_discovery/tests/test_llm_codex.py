@@ -1,3 +1,4 @@
+# ruff: noqa: E402
 from __future__ import annotations
 
 import sys
@@ -521,6 +522,7 @@ def test_parse_jsonl_usage_is_none_when_no_turn_completed_event() -> None:
 def test_codex_provider_logs_usage_when_present() -> None:
     """LoggingCodexInvoker wrapping a fake invoker emits a codex_usage INFO record."""
     import logging as _logging
+
     from polymarket_discovery.providers.codex_invoker_logging import LoggingCodexInvoker
 
     usage = CodexUsage(input_tokens=100, cached_input_tokens=10, output_tokens=20,
@@ -715,6 +717,7 @@ def test_basket_groups_schema_is_valid_draft_2020_12() -> None:
 def test_dependency_predictions_schema_accepts_valid_payload() -> None:
     """A well-formed predictions payload should validate against the schema."""
     import json as _json
+
     import jsonschema
 
     schema_path = _schemas_dir() / "dependency_predictions.json"
@@ -734,6 +737,7 @@ def test_dependency_predictions_schema_accepts_valid_payload() -> None:
 def test_dependency_predictions_schema_rejects_invalid_edge_type() -> None:
     """edge_type not in enum should fail schema validation."""
     import json as _json
+
     import jsonschema
 
     schema_path = _schemas_dir() / "dependency_predictions.json"
@@ -754,6 +758,7 @@ def test_dependency_predictions_schema_rejects_invalid_edge_type() -> None:
 def test_basket_groups_schema_accepts_valid_payload() -> None:
     """A well-formed baskets payload should validate against the schema."""
     import json as _json
+
     import jsonschema
 
     schema_path = _schemas_dir() / "basket_groups.json"
@@ -772,6 +777,7 @@ def test_basket_groups_schema_accepts_valid_payload() -> None:
 def test_basket_groups_schema_rejects_empty_market_ids() -> None:
     """market_ids with zero items should fail (minItems: 1)."""
     import json as _json
+
     import jsonschema
 
     schema_path = _schemas_dir() / "basket_groups.json"

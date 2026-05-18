@@ -5,8 +5,6 @@ If this fails, pin a known-good version or adjust sources/alpaca_historical.py.
 """
 from __future__ import annotations
 
-import pytest
-
 
 def test_imports():
     from alpaca.data.historical import StockHistoricalDataClient  # noqa: F401

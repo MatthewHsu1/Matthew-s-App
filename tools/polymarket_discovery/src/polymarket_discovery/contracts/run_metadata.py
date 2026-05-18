@@ -1,5 +1,7 @@
 from dataclasses import dataclass
+
 from .schema_types import SchemaVersion
+
 
 @dataclass(slots=True)
 class RunMetadata:

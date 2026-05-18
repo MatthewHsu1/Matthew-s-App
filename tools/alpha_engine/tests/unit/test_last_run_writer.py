@@ -4,8 +4,6 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
-import pytest
-
 from alpha_engine.control.last_run import LastRunWriter, read_last_run
 
 

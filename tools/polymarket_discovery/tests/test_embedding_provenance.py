@@ -1,3 +1,4 @@
+# ruff: noqa: E402
 """Tests proving that the pipeline fails loudly when no embedding provider is
 configured, that explicit opt-in to the stub works, and that run artifacts
 record embedding provenance accurately.
@@ -7,6 +8,7 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
+from typing import ClassVar
 
 import pytest
 
@@ -20,7 +22,6 @@ from polymarket_discovery.contracts import MarketDescriptor
 from polymarket_discovery.providers.embeddings import StubEmbeddingProvider
 from polymarket_discovery.providers.factories import build_embedding_provider
 from polymarket_discovery.providers.settings import resolve_embedding_settings
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -59,7 +60,7 @@ def test_build_embedding_provider_raises_when_config_has_no_embedding_provider(
     # We achieve this by bypassing DiscoveryConfig and passing a config-like
     # object with an empty embedding_provider attribute.
     class _EmptyProviderConfig:
-        params: dict = {}
+        params: ClassVar[dict] = {}
         embedding_provider: str = ""
         embedding_model: str = "some-model"
 

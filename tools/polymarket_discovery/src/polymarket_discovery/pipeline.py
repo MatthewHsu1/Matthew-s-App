@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime
-import logging
 
 from .config import DiscoveryConfig
 from .contracts import ArbitrageOutputDocument, RunMetadata
@@ -12,9 +12,8 @@ from .interfaces.candidate_reducer import CandidateReducer
 from .interfaces.dependency_inferencer import DependencyInferencer
 from .interfaces.market_source import MarketSource
 from .interfaces.topic_assigner import TopicAssigner
-from .utils.jsonl_logging import stage
 from .serialization import to_output_json, validate_output_document
-
+from .utils.jsonl_logging import stage
 
 logger = logging.getLogger(__name__)
 
@@ -92,10 +91,11 @@ def run_pipeline(
     # to the basket builder.  Bucketing by end date is required so the LLM
     # never sees markets that resolve at different times in the same group —
     # those cannot satisfy the convergence-to-1.00 invariant.
-    from .stages.dependency_inferencer import LLMDependencyInferencer
-    from .interfaces.llm_basket_group import LLMBasketGroup
-    from .stages.topic_assigner import canonicalize_end_date
     from collections import defaultdict
+
+    from .interfaces.llm_basket_group import LLMBasketGroup
+    from .stages.dependency_inferencer import LLMDependencyInferencer
+    from .stages.topic_assigner import canonicalize_end_date
 
     basket_groups: list[LLMBasketGroup] = []
     if _is_enabled("dependency_inferencer") and isinstance(

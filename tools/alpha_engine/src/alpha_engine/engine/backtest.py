@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from datetime import datetime, timezone
 import logging
 import subprocess
+from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -89,7 +89,7 @@ def run_backtest(
     fills: list[TradeRecord] = []
 
     try:
-        engine, instrument_ids = data_loader(cfg, paths)
+        engine, _instrument_ids = data_loader(cfg, paths)
 
         # Wire order logger to the engine's message bus *before* strategy runs.
         attach_order_logger_to_msgbus(
@@ -122,10 +122,10 @@ def run_backtest(
 
         # Strategy instantiation: Nautilus strategy configs take instrument_id,
         # so we splice it from the env config's first instrument.
-        from alpha_engine.strategies.toy_buy_and_hold import ToyBuyAndHoldParams
         from alpha_engine.strategies.bband_volume_setup.strategy import (
             BBandVolumeSetupNautilusParams,
         )
+        from alpha_engine.strategies.toy_buy_and_hold import ToyBuyAndHoldParams
 
         if cfg.strategy.ref == "toy_buy_and_hold":
             params = ToyBuyAndHoldParams(

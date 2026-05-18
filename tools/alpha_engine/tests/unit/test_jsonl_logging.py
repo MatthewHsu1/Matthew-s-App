@@ -4,7 +4,6 @@ import json
 import logging
 from pathlib import Path
 
-from alpha_engine.logging_ import jsonl as jsonl_mod
 from alpha_engine.logging_.jsonl import (
     PACKAGE_LOGGER_NAME,
     setup_jsonl_logging,
@@ -41,11 +40,7 @@ def test_setup_writes_jsonl_with_run_id(tmp_path):
 def test_event_constants_exist():
     from alpha_engine.logging_.events import (
         ENGINE_STARTED,
-        ENGINE_HALTED,
-        ORDER_SUBMITTED,
         ORDER_FILLED,
-        ORDER_CANCELED,
-        ORDER_REJECTED,
         RISK_CHECK,
     )
     assert ENGINE_STARTED == "engine_started"

@@ -21,15 +21,16 @@ def test_mode_is_serializable_back_to_string():
 
 
 def test_env_config_is_frozen_and_has_expected_fields():
+    import dataclasses
+
     from alpha_engine.contracts.config import (
+        DataConfig,
         EnvConfig,
+        ReportingConfig,
+        RiskConfig,
         StrategyConfig,
         VenueConfig,
-        DataConfig,
-        RiskConfig,
-        ReportingConfig,
     )
-    import dataclasses
 
     cfg = EnvConfig(
         env_name="toy",

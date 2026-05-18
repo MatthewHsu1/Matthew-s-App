@@ -10,8 +10,6 @@ import sys
 from pathlib import Path
 from unittest.mock import MagicMock
 
-import pytest
-
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
 if str(SRC) not in sys.path:
@@ -19,7 +17,6 @@ if str(SRC) not in sys.path:
 
 from polymarket_discovery.pipeline import _run_stage  # noqa: E402
 from polymarket_discovery.utils.jsonl_logging import setup_jsonl_logging  # noqa: E402
-
 
 # ---------------------------------------------------------------------------
 # Helpers

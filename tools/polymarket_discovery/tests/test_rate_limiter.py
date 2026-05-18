@@ -1,3 +1,4 @@
+# ruff: noqa: E402
 """Tests for the per-host token-bucket rate limiter."""
 
 from __future__ import annotations
@@ -12,8 +13,7 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from polymarket_discovery.net.rate_limiter import RateLimit, RateLimiter, _Bucket
-
+from polymarket_discovery.net.rate_limiter import RateLimit, RateLimiter
 
 # ---------------------------------------------------------------------------
 # Unit: immediate acquisition when bucket has tokens

@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from alpha_engine.config.loader import load_env_config, ConfigError
+from alpha_engine.config.loader import ConfigError, load_env_config
 from alpha_engine.contracts.mode import Mode
 
 

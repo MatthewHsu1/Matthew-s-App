@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field
 
+
 @dataclass(slots=True)
 class BasketItem:
     basket_id: str

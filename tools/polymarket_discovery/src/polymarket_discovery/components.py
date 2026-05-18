@@ -3,10 +3,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from .interfaces.market_source import MarketSource
-
 from .config import DiscoveryConfig
 from .contracts import MarketDescriptor
+from .interfaces.market_source import MarketSource
 from .pipeline import PipelineComponents
 from .sources.polymarket import PolymarketMarketSource
 from .stages import (

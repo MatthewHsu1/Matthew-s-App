@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+from collections import defaultdict
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Sequence
-from collections import defaultdict
+from typing import Any
 
 import numpy as np
 
@@ -294,7 +295,7 @@ class DefaultTopicAssigner(TopicAssigner):
         # Extract upper-triangle pairs that meet the threshold (excluding
         # self-similarity on the diagonal).  This is the only data we keep;
         # S is released at the end of this scope.
-        pairs = np.argwhere(np.triu(S >= threshold, k=1))
+        pairs = np.argwhere(np.triu(threshold <= S, k=1))
         del S  # free the n² matrix immediately
 
         # --- Union-Find on the edge list (pure Python, tiny at n≤5 000) ---

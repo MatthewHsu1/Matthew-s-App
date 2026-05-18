@@ -1,18 +1,14 @@
 from __future__ import annotations
 
 import os
-import signal
 import subprocess
 import sys
 import time
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
-
-import pytest
 
 from alpha_engine.control.lifecycle import (
-    is_pid_alive,
     is_heartbeat_stale,
+    is_pid_alive,
     stop_pid_with_timeout,
 )
 

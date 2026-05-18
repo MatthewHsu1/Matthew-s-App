@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-
 from alpha_engine.risk.kill_switch_watcher import KillSwitchWatcher
 
 

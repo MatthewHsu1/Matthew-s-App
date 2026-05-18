@@ -1,3 +1,4 @@
+# ruff: noqa: E402
 from __future__ import annotations
 
 import json
@@ -11,16 +12,14 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
+import logging
+
 from polymarket_discovery.cli import run_command
 from polymarket_discovery.config import DiscoveryConfig
-from polymarket_discovery.contracts import BasketItem
-from polymarket_discovery.contracts import DependencyEdge
-from polymarket_discovery.contracts import MarketDescriptor
-import logging
-from polymarket_discovery.utils.jsonl_logging import setup_jsonl_logging
-from polymarket_discovery.pipeline import PipelineComponents
-from polymarket_discovery.pipeline import run_pipeline
+from polymarket_discovery.contracts import BasketItem, DependencyEdge, MarketDescriptor
+from polymarket_discovery.pipeline import PipelineComponents, run_pipeline
 from polymarket_discovery.serialization import validate_output_document
+from polymarket_discovery.utils.jsonl_logging import setup_jsonl_logging
 
 
 def _load_json_fixture(name: str) -> dict[str, object]:

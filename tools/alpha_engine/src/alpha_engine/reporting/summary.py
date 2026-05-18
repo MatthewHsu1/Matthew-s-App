@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from datetime import datetime
-import json
 from pathlib import Path
 
 import pandas as pd
@@ -48,7 +48,7 @@ def write_summary(
             "total_pnl": total_pnl(pnl_daily),
             "sharpe": sharpe(pnl_daily),
             "max_drawdown": max_drawdown(pnl_daily),
-            "trades": int(len(trades)),
+            "trades": len(trades),
             "win_rate": win_rate(trades),
             "avg_holding_sec": avg_holding_seconds(trades),
         },

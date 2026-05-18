@@ -1,12 +1,11 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from hashlib import sha256
-import json
 from pathlib import Path
 from typing import Any
-
 
 DEFAULT_STAGES: tuple[str, ...] = (
     "market_source",

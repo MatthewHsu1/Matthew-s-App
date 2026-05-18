@@ -3,16 +3,16 @@ from __future__ import annotations
 import email.utils
 import json
 import time
+import urllib.request
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any, Mapping
+from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode, urlparse
 from urllib.request import Request
-import urllib.request
 
 from .rate_limiter import RateLimiter, get_default_limiter
-
 
 RETRYABLE_STATUS_CODES = frozenset({429, 500, 502, 503, 504})
 MAX_RETRY_AFTER_SECONDS: float = 60.0

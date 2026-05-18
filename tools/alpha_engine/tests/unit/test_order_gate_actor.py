@@ -3,10 +3,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-import pytest
-
 from alpha_engine.contracts.decision import Decision
-from alpha_engine.risk.check import OrderProbe, RiskContext
+from alpha_engine.risk.check import RiskContext
 from alpha_engine.risk.order_gate import AlphaOrderGate
 
 

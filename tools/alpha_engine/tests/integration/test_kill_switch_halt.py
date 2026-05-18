@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-
 from alpha_engine.engine.paper import install_kill_switch_poller
 
 

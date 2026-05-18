@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import pytest
 
-from alpha_engine.adapters.ibkr import IbkrVenueFactory
 import alpha_engine.adapters  # noqa: F401
+from alpha_engine.adapters.ibkr import IbkrVenueFactory
 from alpha_engine.adapters.registry import default_registry
 from alpha_engine.contracts.config import VenueConfig
 from alpha_engine.contracts.mode import Mode

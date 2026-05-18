@@ -1,3 +1,4 @@
+# ruff: noqa: E402
 from __future__ import annotations
 
 import sys
@@ -11,11 +12,8 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from polymarket_discovery.config import DiscoveryConfig
-from polymarket_discovery.contracts import BasketItem
-from polymarket_discovery.contracts import DependencyEdge
-from polymarket_discovery.contracts import MarketDescriptor
-from polymarket_discovery.stages import DefaultBasketBuilder
-from polymarket_discovery.stages import DefaultBasketValidator
+from polymarket_discovery.contracts import BasketItem, DependencyEdge, MarketDescriptor
+from polymarket_discovery.stages import DefaultBasketBuilder, DefaultBasketValidator
 
 
 def _market(market_id: str, token_ids: list[str]) -> MarketDescriptor:

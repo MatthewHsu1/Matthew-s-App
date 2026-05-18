@@ -14,8 +14,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from alpha_engine.cli_commands import env_start
 import alpha_engine.data.sources  # noqa: F401  (ensure registrations happen first)
+from alpha_engine.cli_commands import env_start
 from alpha_engine.data.registry import default_registry
 
 

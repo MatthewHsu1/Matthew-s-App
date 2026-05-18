@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 import argparse
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Sequence
-
 
 DEFAULT_ENVS_ROOT = Path(__file__).resolve().parent.parent.parent / "envs"
 

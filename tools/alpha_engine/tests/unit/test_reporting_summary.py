@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from alpha_engine.reporting.summary import write_summary, RunMetadata
+from alpha_engine.reporting.summary import RunMetadata, write_summary
 
 
 def test_write_summary_round_trip(tmp_path: Path):

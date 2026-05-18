@@ -1,3 +1,4 @@
+# ruff: noqa: E402
 from __future__ import annotations
 
 import json
@@ -6,7 +7,6 @@ import time
 from datetime import datetime, timedelta, timezone
 from email.utils import format_datetime
 from http.client import HTTPMessage
-from io import BytesIO
 from pathlib import Path
 
 import pytest
@@ -25,7 +25,6 @@ from polymarket_discovery.net.http_json import (
 )
 from polymarket_discovery.net.rate_limiter import RateLimiter
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -42,7 +41,7 @@ class _FakeResponse:
     def __init__(self, payload: object) -> None:
         self._payload = payload
 
-    def __enter__(self) -> "_FakeResponse":
+    def __enter__(self) -> _FakeResponse:
         return self
 
     def __exit__(self, *_: object) -> None:

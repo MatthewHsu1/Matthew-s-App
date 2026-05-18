@@ -1,3 +1,4 @@
+# ruff: noqa: E402
 from __future__ import annotations
 
 import logging
@@ -5,16 +6,13 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
-import pytest
-
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from polymarket_discovery.providers.llm_codex import CodexInvocationResult, CodexUsage
 from polymarket_discovery.providers.codex_invoker_logging import LoggingCodexInvoker
-
+from polymarket_discovery.providers.llm_codex import CodexInvocationResult, CodexUsage
 
 # ---------------------------------------------------------------------------
 # Fake inner invoker

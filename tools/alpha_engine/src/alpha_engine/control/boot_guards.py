@@ -20,9 +20,12 @@ def assert_safe_to_boot(
         raise BootRefusedError(
             f"kill-switch active — remove {killfile_path} to start"
         )
+    
     data = read_last_run(last_run_path)
+
     if data is not None:
         pid = data.get("pid")
+        
         if isinstance(pid, int) and is_pid_alive(pid):
             raise BootRefusedError(
                 f"env already running (PID {pid}) — use `env stop` first"

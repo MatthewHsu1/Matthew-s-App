@@ -2,21 +2,21 @@ from __future__ import annotations
 
 import json
 from collections import defaultdict
+from collections.abc import Mapping, Sequence
 from dataclasses import asdict
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any
 
-from ..contracts import ArbitrageOutputDocument
-from ..contracts import BasketItem
-from ..contracts import DependencyEdge
-from ..contracts import MarketDescriptor
-from ..contracts import RunMetadata
+from ..contracts import (
+    ArbitrageOutputDocument,
+    MarketDescriptor,
+    RunMetadata,
+)
 from ..interfaces.basket_builder import BasketBuilder
 from ..interfaces.basket_validator import BasketValidator
 from ..interfaces.candidate_reducer import CandidateReducer
 from ..interfaces.dependency_inferencer import DependencyInferencer
 from ..interfaces.llm_basket_group import LLMBasketGroup
-from ..interfaces.market_pair import MarketPair
 from ..interfaces.topic_assigner import TopicAssigner
 from ..serialization import validate_output_document as validate_serialized_output
 from .dependency_inferencer import LLMDependencyInferencer

@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import contextlib
 import json
 import subprocess
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Sequence
 
 from ..contracts import MarketDescriptor
 from ..interfaces.codex_invoker import CodexInvoker
@@ -95,15 +96,13 @@ def _parse_jsonl_response(raw: str) -> CodexInvocationResult:
         elif event_type == "turn.completed":
             raw_usage = event.get("usage")
             if isinstance(raw_usage, dict):
-                try:
+                with contextlib.suppress(TypeError, ValueError):
                     usage = CodexUsage(
                         input_tokens=int(raw_usage.get("input_tokens", 0)),
                         cached_input_tokens=int(raw_usage.get("cached_input_tokens", 0)),
                         output_tokens=int(raw_usage.get("output_tokens", 0)),
                         reasoning_output_tokens=int(raw_usage.get("reasoning_output_tokens", 0)),
                     )
-                except (TypeError, ValueError):
-                    pass
 
     if last_agent_text is None:
         raise RuntimeError(

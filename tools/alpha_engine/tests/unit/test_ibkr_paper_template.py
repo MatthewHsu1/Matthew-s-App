@@ -4,10 +4,6 @@ import json
 from importlib import resources
 from pathlib import Path
 
-import pytest
-
-import alpha_engine.configs.templates  # ensure package is importable
-
 
 def test_ibkr_paper_template_loadable_by_loader(tmp_path: Path, monkeypatch):
     monkeypatch.setenv("IBKR_ACCOUNT_ID", "DU123")

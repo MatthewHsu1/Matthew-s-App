@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-from contextlib import contextmanager
-from datetime import UTC, datetime
 import json
 import logging
-from pathlib import Path
 import time
-from typing import Iterator
-
+from collections.abc import Iterator
+from contextlib import contextmanager
+from datetime import UTC, datetime
+from pathlib import Path
 
 PACKAGE_LOGGER_NAME = "polymarket_discovery"
 

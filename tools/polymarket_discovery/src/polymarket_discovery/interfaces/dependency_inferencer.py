@@ -1,11 +1,9 @@
 from __future__ import annotations
 
-from typing import Any
-from typing import Protocol
-from typing import Sequence
+from collections.abc import Sequence
+from typing import Any, Protocol
 
 from ..contracts import DependencyEdge
-
 from .market_pair import MarketPair
 
 

@@ -5,8 +5,8 @@ The watcher itself is pure I/O so it's unit-testable without Nautilus.
 """
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
 
 
 class KillSwitchWatcher:

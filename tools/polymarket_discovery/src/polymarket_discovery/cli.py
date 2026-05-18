@@ -2,13 +2,12 @@ from __future__ import annotations
 
 import argparse
 import logging
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Sequence
 
 from .config import ensure_artifact_dir, generate_run_id, load_config
-from .utils.jsonl_logging import setup_jsonl_logging
 from .pipeline import PipelineComponents, build_default_components, run_pipeline, write_run_artifact
-
+from .utils.jsonl_logging import setup_jsonl_logging
 
 logger = logging.getLogger(__name__)
 

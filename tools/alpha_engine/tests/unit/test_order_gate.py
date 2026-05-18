@@ -1,10 +1,8 @@
 from __future__ import annotations
 
-import pytest
-
 from alpha_engine.contracts.decision import Decision
-from alpha_engine.risk.check import OrderProbe, PreTradeCheck, RiskContext
-from alpha_engine.risk.order_gate import gate_decision, GateOutcome
+from alpha_engine.risk.check import OrderProbe, RiskContext
+from alpha_engine.risk.order_gate import gate_decision
 
 
 def _probe():

@@ -1,6 +1,6 @@
 from alpha_engine.logging_.events import (
-    KILL_SWITCH_TRIGGERED,
     KILL_SWITCH_HALT_COMPLETE,
+    KILL_SWITCH_TRIGGERED,
     PRE_TRADE_CHECK,
     VENUE_RECONNECTING,
 )

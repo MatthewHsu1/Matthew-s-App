@@ -5,11 +5,11 @@ import math
 import pandas as pd
 
 from alpha_engine.reporting.metrics import (
+    avg_holding_seconds,
+    max_drawdown,
+    sharpe,
     total_pnl,
     win_rate,
-    sharpe,
-    max_drawdown,
-    avg_holding_seconds,
 )
 
 

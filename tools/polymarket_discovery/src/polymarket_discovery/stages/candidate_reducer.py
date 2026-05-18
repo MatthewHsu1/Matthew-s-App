@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from itertools import combinations
-from typing import Any, Sequence
+from typing import Any
 
 from ..contracts import MarketDescriptor
 from ..interfaces.candidate_reducer import CandidateReducer

@@ -9,13 +9,10 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-import pytest
-
 from alpha_engine.strategies.bband_volume_setup.state_machine import (
     BBandVolumeSetupParams,
     BBandVolumeSetupStateMachine,
     DailyBar,
-    Intent,
     IntentKind,
     MinuteBar,
     SymbolState,

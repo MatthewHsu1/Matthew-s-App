@@ -12,7 +12,6 @@ from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum, auto
-from typing import Deque
 
 
 @dataclass(frozen=True)
@@ -77,21 +76,21 @@ class Intent:
     reason: str = ""
 
     @classmethod
-    def no_op(cls) -> "Intent":
+    def no_op(cls) -> Intent:
         return cls(kind=IntentKind.NO_OP)
 
 
 @dataclass
 class _SymbolBook:
     state: SymbolState = SymbolState.IDLE
-    closes: Deque[float] = field(default_factory=deque)
-    volumes: Deque[float] = field(default_factory=deque)
+    closes: deque[float] = field(default_factory=deque)
+    volumes: deque[float] = field(default_factory=deque)
     day1_close: float = 0.0
     day1_low: float = 0.0
     tranches_filled: int = 0
     # Per-session intraday tracking.
     current_session_open: float = 0.0
-    minute_volumes: Deque[float] = field(default_factory=deque)
+    minute_volumes: deque[float] = field(default_factory=deque)
     last_surge_ts: datetime | None = None
 
 
@@ -216,8 +215,8 @@ class BBandVolumeSetupStateMachine:
             book.minute_volumes.popleft()
 
         # Need a full baseline before any volume-relative trigger fires.
-        if avg_volume <= 0.0 or len(book.minute_volumes) <= self._params.volume_avg_period:
-            # `<=` because we just appended; the bar we're evaluating is the (N+1)th.
+        # `<=` on the length check: we just appended, so the bar we're evaluating is the (N+1)th.
+        if avg_volume <= 0.0 or len(book.minute_volumes) <= self._params.volume_avg_period:  # noqa: SIM102
             if avg_volume <= 0.0:
                 return Intent.no_op()
 

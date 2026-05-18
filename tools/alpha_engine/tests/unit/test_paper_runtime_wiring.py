@@ -1,10 +1,7 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import MagicMock
-
-import pytest
 
 from alpha_engine.contracts.config import (
     DataConfig,
@@ -15,11 +12,10 @@ from alpha_engine.contracts.config import (
     VenueConfig,
 )
 from alpha_engine.contracts.mode import Mode
-from alpha_engine.config.paths import EnvPaths
 from alpha_engine.engine.paper import (
     build_ibkr_client_configs,
-    install_order_gate,
     install_kill_switch_poller,
+    install_order_gate,
 )
 
 

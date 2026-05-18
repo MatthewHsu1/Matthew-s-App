@@ -1,14 +1,14 @@
 from __future__ import annotations
 
-from typing import Any, Sequence
+from collections.abc import Sequence
+from typing import Any
 
 from ..contracts import DependencyEdge, MarketDescriptor
 from ..interfaces.dependency_inferencer import DependencyInferencer
 from ..interfaces.llm_basket_group import LLMBasketGroup
 from ..interfaces.llm_provider import LLMProvider
 from ..interfaces.market_pair import MarketPair
-from ..providers.factories import build_llm_provider
-from ..providers.factories import configures_llm_provider
+from ..providers.factories import build_llm_provider, configures_llm_provider
 from ..providers.llm_codec import DEFAULT_DEPENDENCY_BATCH_SIZE, validate_llm_dependency_prediction
 
 
@@ -39,7 +39,7 @@ class LLMDependencyInferencer(DependencyInferencer):
             predictions.extend(chunk_predictions)
 
         edges: list[DependencyEdge] = []
-        for (left, right), prediction in zip(pairs, predictions):
+        for (left, right), prediction in zip(pairs, predictions, strict=True):
             validated = validate_llm_dependency_prediction(prediction)
             edges.append(
                 DependencyEdge(

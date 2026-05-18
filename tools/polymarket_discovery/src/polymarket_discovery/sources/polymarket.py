@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from typing import Any, Sequence
+from typing import Any
 from urllib.error import HTTPError
 
 from ..contracts import MarketDescriptor
@@ -381,9 +382,7 @@ class PolymarketMarketSource(MarketSource):
             return False
         if not clob_market.active or clob_market.closed or clob_market.archived:
             return False
-        if not clob_market.accepting_orders:
-            return False
-        return True
+        return clob_market.accepting_orders
 
     @staticmethod
     def _sort_key(market: MarketDescriptor) -> tuple[str, str]:

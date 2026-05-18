@@ -7,6 +7,6 @@ if TYPE_CHECKING:
 
 
 class OpenAIInvoker(Protocol):
-    def call(self, payload: dict[str, Any]) -> "OpenAIInvocationResult":
+    def call(self, payload: dict[str, Any]) -> OpenAIInvocationResult:
         """Issue an OpenAI chat-completions request and return a structured result."""
         ...

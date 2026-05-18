@@ -1,3 +1,4 @@
+# ruff: noqa: E402
 from __future__ import annotations
 
 import json
@@ -16,8 +17,7 @@ if str(SRC) not in sys.path:
 
 from polymarket_discovery.config import DiscoveryConfig
 from polymarket_discovery.contracts import MarketDescriptor
-from polymarket_discovery.providers.embeddings import HTTPEmbeddingProvider
-from polymarket_discovery.providers.embeddings import StubEmbeddingProvider
+from polymarket_discovery.providers.embeddings import HTTPEmbeddingProvider, StubEmbeddingProvider
 from polymarket_discovery.providers.factories import build_embedding_provider
 from polymarket_discovery.stages import DefaultTopicAssigner
 
@@ -26,7 +26,7 @@ class _FakeResponse:
     def __init__(self, payload: object) -> None:
         self._payload = payload
 
-    def __enter__(self) -> "_FakeResponse":
+    def __enter__(self) -> _FakeResponse:
         return self
 
     def __exit__(self, exc_type, exc, tb) -> None:
@@ -567,13 +567,13 @@ def test_cluster_markets_succeeds_for_realistic_input_under_cap(tmp_path: Path) 
 
 
 # ---------------------------------------------------------------------------
-# Performance smoke test: 500 markets × 64 dims must finish in < 1 second.
+# Performance smoke test: 500 markets x 64 dims must finish in < 1 second.
 # This is a regression detector — revert the vectorisation and this fails.
 # ---------------------------------------------------------------------------
 
 
 def test_clustering_500_markets_64_dims_completes_under_one_second(tmp_path: Path) -> None:
-    """Soft regression guard: numpy vectorisation must keep 500×64 clustering
+    """Soft regression guard: numpy vectorisation must keep 500x64 clustering
     under 1 second.  If the vectorisation is reverted to pure Python, the
     nested loop executes ~125 000 iterations and this will fail.
     """
@@ -597,6 +597,6 @@ def test_clustering_500_markets_64_dims_completes_under_one_second(tmp_path: Pat
     elapsed = time.monotonic() - start
 
     assert elapsed < 1.0, (
-        f"Clustering 500 markets × 64 dims took {elapsed:.3f}s — expected < 1.0s. "
+        f"Clustering 500 markets x 64 dims took {elapsed:.3f}s — expected < 1.0s. "
         "Has the numpy vectorisation been reverted?"
     )

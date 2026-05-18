@@ -3,8 +3,8 @@ from __future__ import annotations
 import pytest
 
 from alpha_engine.adapters.registry import (
-    VenueAdapterRegistry,
     UnknownVenueAdapterError,
+    VenueAdapterRegistry,
     venue_adapter,
 )
 

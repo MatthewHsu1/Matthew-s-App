@@ -1,3 +1,4 @@
+# ruff: noqa: E402
 """Tests for LLM basket-structure inference.
 
 Covers the four areas required by the task:
@@ -27,13 +28,11 @@ from polymarket_discovery.interfaces.llm_basket_group import LLMBasketGroup
 from polymarket_discovery.providers.llm_codec import (
     build_basket_prompt,
     parse_llm_basket_groups,
-    validate_llm_basket_groups,
 )
 from polymarket_discovery.providers.llm_stub import DeepSeekLLMProviderStub
+from polymarket_discovery.serialization import validate_output_document
 from polymarket_discovery.stages.basket_builder import DefaultBasketBuilder
 from polymarket_discovery.stages.basket_validator import DefaultBasketValidator
-from polymarket_discovery.serialization import validate_output_document
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -412,7 +411,7 @@ class TestConvergenceInvariantsWithLLMBaskets:
 
     def test_schema_validation_passes_for_complete_llm_basket(self) -> None:
         """The serialized document must pass schema + cross-entity validation."""
-        from polymarket_discovery.contracts import RunMetadata, ArbitrageOutputDocument
+        from polymarket_discovery.contracts import ArbitrageOutputDocument, RunMetadata
         from polymarket_discovery.serialization import to_output_dict
 
         markets = [
@@ -612,16 +611,16 @@ class TestGroupMarketsForBasketInference:
     def test_cross_end_date_basket_never_produced_by_stages_pipeline(self) -> None:
         """End-to-end: run_pipeline in stages.py must not call infer_basket_groups
         with a mix of markets from different end dates."""
-        import json
         import tempfile
         from pathlib import Path
-        from polymarket_discovery.stages.dependency_inferencer import LLMDependencyInferencer
+
+        from polymarket_discovery.contracts import RunMetadata
         from polymarket_discovery.stages.basket_builder import DefaultBasketBuilder
         from polymarket_discovery.stages.basket_validator import DefaultBasketValidator
-        from polymarket_discovery.stages.topic_assigner import DefaultTopicAssigner
         from polymarket_discovery.stages.candidate_reducer import TopicEndDateCandidateReducer
+        from polymarket_discovery.stages.dependency_inferencer import LLMDependencyInferencer
         from polymarket_discovery.stages.stages import run_pipeline
-        from polymarket_discovery.contracts import RunMetadata
+        from polymarket_discovery.stages.topic_assigner import DefaultTopicAssigner
 
         # Capture which market groups the LLM is asked about
         seen_groups: list[list[str]] = []

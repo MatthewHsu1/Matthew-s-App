@@ -1,3 +1,4 @@
+# ruff: noqa: E402
 from __future__ import annotations
 
 import json
@@ -18,10 +19,9 @@ from polymarket_discovery.interfaces.llm_dependency_prediction import LLMDepende
 from polymarket_discovery.providers.factories import build_llm_provider
 from polymarket_discovery.providers.llm_codec import (
     DEFAULT_DEPENDENCY_BATCH_SIZE,
-    parse_llm_dependency_prediction,
     build_batched_dependency_prompt,
     parse_batched_dependency_predictions,
-    validate_batched_dependency_predictions,
+    parse_llm_dependency_prediction,
 )
 from polymarket_discovery.providers.llm_stub import DeepSeekLLMProviderStub
 from polymarket_discovery.stages import LLMDependencyInferencer
@@ -31,7 +31,7 @@ from polymarket_discovery.stages import LLMDependencyInferencer
 class _FakeResponse:
     payload: object
 
-    def __enter__(self) -> "_FakeResponse":
+    def __enter__(self) -> _FakeResponse:
         return self
 
     def __exit__(self, exc_type, exc, tb) -> None:
@@ -447,7 +447,7 @@ class _CountingProvider:
     ) -> list[LLMDependencyPrediction]:
         pair_list = list(pairs)  # type: ignore[arg-type]
         self.call_count += 1
-        self.received_chunks.append([(l.market_id, r.market_id) for l, r in pair_list])
+        self.received_chunks.append([(left.market_id, right.market_id) for left, right in pair_list])
         return [
             LLMDependencyPrediction(
                 edge_type="related",

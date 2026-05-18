@@ -1,3 +1,4 @@
+# ruff: noqa: E402
 from __future__ import annotations
 
 import json
@@ -24,7 +25,7 @@ from polymarket_discovery.sources.polymarket import PolymarketMarketSource
 class _FakeResponse:
     payload: object
 
-    def __enter__(self) -> "_FakeResponse":
+    def __enter__(self) -> _FakeResponse:
         return self
 
     def __exit__(self, exc_type, exc, tb) -> None:
@@ -581,6 +582,7 @@ def test_run_artifact_records_fixture_market_source_when_explicitly_configured(
     field is stamped from config, not hardcoded.
     """
     import json
+
     from polymarket_discovery.cli import run_command
 
     config_payload = {

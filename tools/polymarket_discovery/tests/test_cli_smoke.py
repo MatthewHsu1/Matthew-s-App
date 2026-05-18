@@ -1,8 +1,10 @@
+# ruff: noqa: E402
 from __future__ import annotations
 
 import json
 import sys
 from pathlib import Path
+
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -12,9 +14,7 @@ if str(SRC) not in sys.path:
 
 from polymarket_discovery.cli import run_command
 from polymarket_discovery.config import load_config
-from polymarket_discovery.contracts import BasketItem
-from polymarket_discovery.contracts import DependencyEdge
-from polymarket_discovery.contracts import MarketDescriptor
+from polymarket_discovery.contracts import BasketItem, DependencyEdge, MarketDescriptor
 from polymarket_discovery.pipeline import PipelineComponents
 
 
@@ -266,7 +266,8 @@ def test_generate_run_id_consecutive_runs_with_same_config_produce_different_ids
     """Two consecutive calls to generate_run_id with identical config must yield
     distinct IDs so that Phase 2 can distinguish artifact runs from each other."""
     import time
-    from polymarket_discovery.config import generate_run_id, DiscoveryConfig
+
+    from polymarket_discovery.config import DiscoveryConfig, generate_run_id
 
     config = DiscoveryConfig(
         output_root=tmp_path / "artifacts",
@@ -289,7 +290,8 @@ def test_generate_run_id_format_is_parseable_and_sortable(tmp_path: Path) -> Non
     lexicographically sortable (later runs sort after earlier ones)."""
     import re
     import time
-    from polymarket_discovery.config import generate_run_id, DiscoveryConfig
+
+    from polymarket_discovery.config import DiscoveryConfig, generate_run_id
 
     _RUN_ID_RE = re.compile(r"^run_([0-9]{8}T[0-9]{6}Z)_([0-9a-f]{12})$")
 

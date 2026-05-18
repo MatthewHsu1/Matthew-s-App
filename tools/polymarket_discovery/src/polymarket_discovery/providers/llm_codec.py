@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Sequence
 from math import isfinite
-from typing import Any, Sequence
+from typing import Any
 
 from ..contracts import MarketDescriptor
 from ..interfaces.llm_basket_group import LLMBasketGroup
 from ..interfaces.llm_dependency_prediction import LLMDependencyPrediction
-
 
 ALLOWED_LLM_EDGE_TYPES = frozenset({"mutually_exclusive", "conditional", "related"})
 
@@ -15,7 +15,7 @@ ALLOWED_LLM_EDGE_TYPES = frozenset({"mutually_exclusive", "conditional", "relate
 # Batched dependency-inference codec
 # ---------------------------------------------------------------------------
 # Default maximum number of market pairs sent in a single LLM prompt.
-# Keeps token budgets manageable (~50 pairs × ~200 tokens/pair ≈ 10k tokens).
+# Keeps token budgets manageable (~50 pairs x ~200 tokens/pair ~= 10k tokens).
 # Callers may override this via DiscoveryConfig.params["dependency_inferencer"]["batch_size"].
 DEFAULT_DEPENDENCY_BATCH_SIZE: int = 50
 

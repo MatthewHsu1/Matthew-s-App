@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-
 from alpha_engine.cli_commands.env_tail import run as env_tail
 
 

@@ -15,9 +15,9 @@ from .topic_assigner import DefaultTopicAssigner
 __all__ = [
     "DefaultBasketBuilder",
     "DefaultBasketValidator",
-    "TopicEndDateCandidateReducer",
-    "LLMDependencyInferencer",
     "DefaultTopicAssigner",
+    "LLMDependencyInferencer",
+    "TopicEndDateCandidateReducer",
     "document_to_json",
     "run_pipeline",
     "validate_output_document",

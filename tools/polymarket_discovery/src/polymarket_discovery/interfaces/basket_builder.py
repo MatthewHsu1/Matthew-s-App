@@ -1,12 +1,9 @@
 from __future__ import annotations
 
-from typing import Any
-from typing import Protocol
-from typing import Sequence
+from collections.abc import Sequence
+from typing import Any, Protocol
 
-from ..contracts import BasketItem
-from ..contracts import DependencyEdge
-from ..contracts import MarketDescriptor
+from ..contracts import BasketItem, DependencyEdge, MarketDescriptor
 from .llm_basket_group import LLMBasketGroup
 
 

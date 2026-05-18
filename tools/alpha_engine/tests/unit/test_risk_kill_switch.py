@@ -3,9 +3,9 @@ from __future__ import annotations
 from pathlib import Path
 
 from alpha_engine.control.kill_switch_file import (
+    clear_kill_switch,
     is_kill_switch_set,
     touch_kill_switch,
-    clear_kill_switch,
 )
 from alpha_engine.risk.check import OrderProbe, RiskContext
 from alpha_engine.risk.kill_switch import make_kill_switch_check

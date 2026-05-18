@@ -15,21 +15,19 @@ Full lifecycle wiring is split across Task 29 (this file builds out the wiring).
 """
 from __future__ import annotations
 
-import logging
 import os
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Callable
 
+# Importing these packages triggers @venue_adapter / @data_source registration.
+import alpha_engine.adapters
+import alpha_engine.data.sources  # noqa: F401
 from alpha_engine.config.paths import EnvPaths
 from alpha_engine.contracts.config import EnvConfig, RiskConfig
 from alpha_engine.contracts.mode import Mode
 from alpha_engine.risk.check import PreTradeCheck
-
-# Importing these packages triggers @venue_adapter / @data_source registration.
-import alpha_engine.adapters  # noqa: F401
-import alpha_engine.data.sources  # noqa: F401
 
 
 @dataclass(frozen=True)
@@ -65,6 +63,7 @@ def build_ibkr_client_configs(cfg: EnvConfig):
     factory = factory_cls()
     data_cfg = factory.data_client_config(cfg.venue, cfg.mode)
     exec_cfg = factory.exec_client_config(cfg.venue, cfg.mode)
+
     return data_cfg, exec_cfg
 
 
@@ -79,13 +78,16 @@ def install_order_gate(
     from alpha_engine.risk.order_gate import AlphaOrderGate
 
     checks = build_pre_trade_checks(risk_cfg)
+    
     gate = AlphaOrderGate(
         msgbus=msgbus,
         risk_logger=risk_logger,
         checks=checks,
         context_provider=context_provider,
     )
+
     gate.on_start()
+
     return gate
 
 
@@ -103,13 +105,18 @@ class KillSwitchPoller:
     def tick(self) -> bool:
         if self._fired:
             return False
+        
         if not self.killfile_path.exists():
             return False
+        
         self.cancel_all()
+
         if self.flatten_on_halt:
             self.flatten()
+
         self.write_summary("kill_switch")
         self._fired = True
+
         return True
 
 
@@ -148,19 +155,21 @@ def run_paper(
       7. last_run.json write (Task 25)
       8. node.run() — blocks until SIGTERM / kill-switch
     """
-    from alpha_engine.control.boot_guards import assert_safe_to_boot
-    from alpha_engine.config.secrets import load_secrets_file
-    from alpha_engine.control.last_run import LastRunWriter
     from alpha_engine.config.run_id import generate_run_id
+    from alpha_engine.config.secrets import load_secrets_file
+    from alpha_engine.control.boot_guards import assert_safe_to_boot
+    from alpha_engine.control.last_run import LastRunWriter
 
     if cfg.mode is not Mode.PAPER:
         raise ValueError(f"run_paper called with mode={cfg.mode}")
 
     paths.ensure_dirs()
+
     assert_safe_to_boot(
         killfile_path=paths.kill_switch_path,
         last_run_path=paths.last_run_path,
     )
+
     load_secrets_file(paths.secrets_path)
 
     run_id = generate_run_id(env_name=cfg.env_name, config_payload={
@@ -180,16 +189,17 @@ def run_paper(
     data_cfg, exec_cfg = build_ibkr_client_configs(cfg)
 
     if trading_node_factory is None:
-        from nautilus_trader.live.node import TradingNode
         from nautilus_trader.live.config import TradingNodeConfig
-        node = TradingNode(
+        from nautilus_trader.live.node import TradingNode
+
+        _node = TradingNode(
             config=TradingNodeConfig(
                 data_clients={"IBKR": data_cfg},
                 exec_clients={"IBKR": exec_cfg},
             )
         )
     else:
-        node = trading_node_factory(data_cfg, exec_cfg)
+        _node = trading_node_factory(data_cfg, exec_cfg)
 
     # OrderGate + KillSwitch wiring happens here. The actual loop integration
     # (calling poller.tick() on a Nautilus TimeEvent) requires the node to be

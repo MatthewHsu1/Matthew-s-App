@@ -8,8 +8,8 @@ Fail-closed semantics: if any check raises, the gate blocks with reason
 """
 from __future__ import annotations
 
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
-from typing import Callable, Sequence
 
 from alpha_engine.contracts.decision import Decision
 from alpha_engine.risk.check import OrderProbe, PreTradeCheck, RiskContext

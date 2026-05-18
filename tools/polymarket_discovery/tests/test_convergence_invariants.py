@@ -1,3 +1,4 @@
+# ruff: noqa: E402
 """Tests proving the three convergence-contract invariants introduced to
 enforce the Phase 1 goal: baskets whose combined pricing converges toward 1.00.
 
@@ -23,7 +24,6 @@ if str(SRC) not in sys.path:
 from polymarket_discovery.contracts import BasketItem
 from polymarket_discovery.serialization import OutputValidationError, validate_output_document
 from polymarket_discovery.stages import DefaultBasketValidator
-
 
 # ---------------------------------------------------------------------------
 # Shared helpers

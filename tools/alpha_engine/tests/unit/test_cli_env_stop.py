@@ -1,14 +1,11 @@
 from __future__ import annotations
 
 import json
-import os
 import subprocess
 import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-
-import pytest
 
 from alpha_engine.cli_commands.env_stop import run as env_stop
 

@@ -1,12 +1,11 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from math import isfinite
-from typing import Any, Sequence
+from typing import Any
 
-from ..contracts import BasketItem
-from ..contracts import DependencyEdge
-from ..contracts import MarketDescriptor
+from ..contracts import BasketItem, DependencyEdge, MarketDescriptor
 from ..interfaces.basket_builder import BasketBuilder
 from ..interfaces.llm_basket_group import LLMBasketGroup
 from ..utils.coercion import coerce_bool, coerce_float

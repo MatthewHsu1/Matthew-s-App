@@ -10,6 +10,7 @@ Pins the contract:
 from __future__ import annotations
 
 from pathlib import Path
+from typing import ClassVar
 
 import numpy as np
 import pandas as pd
@@ -25,7 +26,6 @@ from alpha_engine.contracts.config import (
     VenueConfig,
 )
 from alpha_engine.contracts.mode import Mode
-from alpha_engine.data.registry import DataSourceRegistry
 
 
 def _make_cfg(
@@ -61,7 +61,7 @@ class _CountingStubSource:
     Returns deterministic OHLCV for daily and minute bar_specs. Tracks calls.
     """
 
-    instances: list["_CountingStubSource"] = []
+    instances: ClassVar[list[_CountingStubSource]] = []
 
     def __init__(self) -> None:
         self.calls: list[tuple[str, str]] = []
@@ -126,7 +126,7 @@ def test_builds_engine_with_one_instrument_two_bar_streams(
     paths = EnvPaths(envs_root=tmp_path / "envs", env_name="cache_loader_test")
     cfg = _make_cfg()
 
-    engine, instrument_ids = cache_loader.build_engine_from_cache(cfg, paths)
+    _engine, instrument_ids = cache_loader.build_engine_from_cache(cfg, paths)
     assert len(instrument_ids) == 1
     assert str(instrument_ids[0]) == "MSFT.NASDAQ"
 
@@ -149,7 +149,7 @@ def test_multi_instrument_loads_all_bar_types(
     paths = EnvPaths(envs_root=tmp_path / "envs", env_name="cache_loader_test")
     cfg = _make_cfg(instruments=("MSFT.NASDAQ", "AAPL.NASDAQ"))
 
-    engine, instrument_ids = cache_loader.build_engine_from_cache(cfg, paths)
+    _engine, instrument_ids = cache_loader.build_engine_from_cache(cfg, paths)
     assert {str(i) for i in instrument_ids} == {"MSFT.NASDAQ", "AAPL.NASDAQ"}
 
     all_calls = [c for inst in _CountingStubSource.instances for c in inst.calls]

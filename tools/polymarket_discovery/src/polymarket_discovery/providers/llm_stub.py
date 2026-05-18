@@ -1,7 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Sequence
 
 from ..contracts import MarketDescriptor
 from ..interfaces.llm_basket_group import LLMBasketGroup
@@ -82,7 +82,7 @@ class DeepSeekLLMProviderStub(LLMProvider):
             ("democrat", "republican"),
             ("candidate a", "candidate b"),
         )
-        for a, b in conflict_terms:
-            if (a in left and b in right) or (b in left and a in right):
-                return True
-        return False
+        return any(
+            (a in left and b in right) or (b in left and a in right)
+            for a, b in conflict_terms
+        )
