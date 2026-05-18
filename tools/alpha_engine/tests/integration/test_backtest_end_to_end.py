@@ -16,7 +16,7 @@ from alpha_engine.contracts.config import (
     VenueConfig,
 )
 from alpha_engine.contracts.mode import Mode
-from alpha_engine.engine.boot import run_backtest
+from alpha_engine.engine.backtest import run_backtest
 from alpha_engine.strategies import default_registry  # noqa: F401  (triggers registration)
 from tests.fixtures.catalog_builder import build_engine_with_synthetic_bars
 
