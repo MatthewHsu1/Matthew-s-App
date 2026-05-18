@@ -7,27 +7,28 @@ here and translates emitted `Intent` values back into order submissions.
 
 from __future__ import annotations
 
-import math
 from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum, auto
 
+from alpha_engine.strategies.bband_volume_setup.detection import (
+    Day1Inputs,
+    is_day1_setup,
+)
+from alpha_engine.strategies.bband_volume_setup.params import (
+    BBandVolumeSetupParams,
+)
 
-@dataclass(frozen=True)
-class BBandVolumeSetupParams:
-    bband_period: int = 20
-    bband_stddev: float = 2.0
-    volume_avg_period: int = 20
-    day1_volume_multiplier: float = 2.0
-    spike_volume_multiplier: float = 3.0
-    spike_price_move_pct: float = 1.5
-    surge_volume_multiplier: float = 2.0
-    surge_requires_price_below_open: bool = True
-    surge_min_gap_minutes: int = 30
-    tranche_count: int = 3
-    hard_stop_pct_below_day1_low: float = 2.0
-    max_hold_days: int = 5
+__all__ = [
+    "BBandVolumeSetupParams",
+    "BBandVolumeSetupStateMachine",
+    "DailyBar",
+    "Intent",
+    "IntentKind",
+    "MinuteBar",
+    "SymbolState",
+]
 
 
 @dataclass(frozen=True)
@@ -94,15 +95,6 @@ class _SymbolBook:
     last_surge_ts: datetime | None = None
 
 
-def _stddev(values: list[float]) -> float:
-    n = len(values)
-    if n < 2:
-        return 0.0
-    mean = sum(values) / n
-    var = sum((v - mean) ** 2 for v in values) / n
-    return math.sqrt(var)
-
-
 class BBandVolumeSetupStateMachine:
     def __init__(self, params: BBandVolumeSetupParams) -> None:
         self._params = params
@@ -154,20 +146,13 @@ class BBandVolumeSetupStateMachine:
         return Intent.no_op()
 
     def _maybe_detect_setup(self, book: _SymbolBook, bar: DailyBar) -> Intent:
-        if len(book.closes) < self._params.bband_period:
-            return Intent.no_op()
-        if len(book.volumes) < self._params.volume_avg_period:
-            return Intent.no_op()
-
-        closes = list(book.closes)
-        sma = sum(closes) / len(closes)
-        lower_band = sma - self._params.bband_stddev * _stddev(closes)
-        avg_volume = sum(book.volumes) / len(book.volumes)
-
-        volume_trigger = bar.volume >= self._params.day1_volume_multiplier * avg_volume
-        band_trigger = bar.low <= lower_band
-
-        if volume_trigger and band_trigger:
+        inputs = Day1Inputs(
+            prior_closes=list(book.closes),
+            prior_volumes=list(book.volumes),
+            bar_low=bar.low,
+            bar_volume=bar.volume,
+        )
+        if is_day1_setup(inputs, self._params):
             book.state = SymbolState.SETUP_DETECTED
             book.day1_close = bar.close
             book.day1_low = bar.low
