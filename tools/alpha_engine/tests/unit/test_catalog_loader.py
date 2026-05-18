@@ -52,7 +52,7 @@ def test_build_engine_loads_daily_and_minute_bars(tmp_path: Path) -> None:
     )
     build_tmp_catalog(
         root=catalog_root, symbol="MSFT", venue="NASDAQ",
-        bar_spec="1-MINUTE-LAST", n_bars=10,
+        bar_spec="5-MINUTE-LAST", n_bars=10,
         start=datetime(2024, 1, 2, 14, 30, tzinfo=timezone.utc),
     )
 
@@ -108,4 +108,23 @@ def test_build_engine_raises_when_no_bars(tmp_path: Path) -> None:
     paths.ensure_dirs()
 
     with pytest.raises(CatalogLoaderError, match="no bars found"):
+        build_engine_from_catalog(cfg, paths)
+
+
+def test_build_engine_raises_when_only_daily_bars_present(tmp_path: Path) -> None:
+    """Catalog has daily bars but no minute bars in range — loader must error,
+    not silently run a daily-only backtest."""
+    catalog_root = tmp_path / "catalog_daily_only"
+    build_tmp_catalog(
+        root=catalog_root, symbol="MSFT", venue="NASDAQ",
+        bar_spec="1-DAY-LAST", n_bars=10,
+        start=datetime(2024, 1, 2, tzinfo=timezone.utc),
+    )
+    # Deliberately do NOT add 5-MINUTE-LAST bars.
+
+    cfg = _make_cfg(catalog_path=str(catalog_root))
+    paths = EnvPaths(envs_root=tmp_path / "envs", env_name="test_env")
+    paths.ensure_dirs()
+
+    with pytest.raises(CatalogLoaderError, match=r"no bars found.*5-MINUTE"):
         build_engine_from_catalog(cfg, paths)

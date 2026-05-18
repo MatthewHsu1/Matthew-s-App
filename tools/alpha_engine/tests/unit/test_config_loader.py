@@ -76,3 +76,27 @@ def test_accepts_paper_without_max_daily_loss(tmp_path, valid_config_dict):
     del valid_config_dict["risk"]["max_daily_loss_usd"]
     cfg = load_env_config(_write(tmp_path, valid_config_dict))
     assert cfg.risk.max_daily_loss_usd is None
+
+
+def test_load_rejects_removed_alpaca_historical(tmp_path: Path) -> None:
+    """alpaca_historical was removed; loader must reject it with a clear message."""
+    cfg_path = tmp_path / "config.json"
+    cfg_path.write_text(json.dumps({
+        "env_name": "rejected",
+        "mode": "backtest",
+        "strategy": {"ref": "bband_volume_setup", "params": {}},
+        "venue": {"id": "nasdaq_sim", "account_kind": "paper"},
+        "data": {
+            "live_source": "venue",
+            "historical_source": "alpaca_historical",
+            "instruments": ["MSFT.NASDAQ"],
+            "bar_spec": "1-DAY-LAST",
+            "start_date": "2024-01-01",
+            "end_date": "2024-12-31",
+        },
+        "risk": {},
+        "reporting": {"timezone": "UTC"},
+    }))
+
+    with pytest.raises(ConfigError, match=r"alpaca_historical.*no longer supported"):
+        load_env_config(cfg_path)

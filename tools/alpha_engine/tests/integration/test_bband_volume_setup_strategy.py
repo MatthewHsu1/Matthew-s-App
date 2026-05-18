@@ -39,7 +39,7 @@ def test_strategy_boots_with_catalog_data_no_crash(tmp_path: Path) -> None:
     )
     build_tmp_catalog(
         root=catalog_root, symbol="MSFT", venue="NASDAQ",
-        bar_spec="1-MINUTE-LAST", n_bars=30,
+        bar_spec="5-MINUTE-LAST", n_bars=30,
         start=datetime(2026, 1, 5, 14, 30, tzinfo=timezone.utc),
     )
 
@@ -51,7 +51,7 @@ def test_strategy_boots_with_catalog_data_no_crash(tmp_path: Path) -> None:
     params = BBandVolumeSetupNautilusParams(
         instrument_ids=[str(instrument_ids[0])],
         tranche_size_qty=10,
-        minute_bar_step=1,
+        minute_bar_step=5,
     )
     strategy = BBandVolumeSetupStrategy(config=params)
     engine.add_strategy(strategy)

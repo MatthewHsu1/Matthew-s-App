@@ -24,7 +24,7 @@ from alpha_engine.config.paths import EnvPaths
 from alpha_engine.contracts.config import EnvConfig
 
 # Bar specs the bband_volume_setup strategy consumes.
-_REQUIRED_BAR_SPECS: tuple[str, ...] = ("1-DAY-LAST", "1-MINUTE-LAST")
+_REQUIRED_BAR_SPECS: tuple[str, ...] = ("1-DAY-LAST", "5-MINUTE-LAST")
 
 
 class CatalogLoaderError(RuntimeError):
@@ -104,6 +104,11 @@ def build_engine_from_catalog(
                 start=start_dt,
                 end=end_dt,
             )
+            if not bars:
+                raise CatalogLoaderError(
+                    f"no bars found for {bar_spec_str} on {iid_str!r} "
+                    f"between {start_dt} and {end_dt} in catalog at {catalog_root}"
+                )
             all_bars.extend(bars)
 
     if not all_bars:

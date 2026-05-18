@@ -47,13 +47,13 @@ def test_build_tmp_catalog_called_twice_same_root(tmp_path: Path) -> None:
         root=tmp_path,
         symbol="MSFT",
         venue="NASDAQ",
-        bar_spec="1-MINUTE-LAST",
+        bar_spec="5-MINUTE-LAST",
         start=datetime(2024, 1, 2, 14, 30, tzinfo=timezone.utc),
         n_bars=4,
     )
 
     daily_bars = catalog.bars(bar_types=["MSFT.NASDAQ-1-DAY-LAST-EXTERNAL"])
-    minute_bars = catalog.bars(bar_types=["MSFT.NASDAQ-1-MINUTE-LAST-EXTERNAL"])
+    minute_bars = catalog.bars(bar_types=["MSFT.NASDAQ-5-MINUTE-LAST-EXTERNAL"])
 
     assert len(daily_bars) == 3
     assert len(minute_bars) == 4

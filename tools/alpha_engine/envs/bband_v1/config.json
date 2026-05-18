@@ -5,7 +5,7 @@
     "ref": "bband_volume_setup",
     "params": {
       "tranche_size_qty": 10,
-      "minute_bar_step": 1,
+      "minute_bar_step": 5,
       "bband_period": 20,
       "bband_stddev": 2.0,
       "volume_avg_period": 20,
