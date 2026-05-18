@@ -21,7 +21,6 @@ from nautilus_trader.model.instruments import Equity
 from nautilus_trader.model.objects import Price, Quantity
 from nautilus_trader.persistence.catalog import ParquetDataCatalog
 
-
 _AGGREGATION_BY_NAME = {
     "DAY": BarAggregation.DAY,
     "MINUTE": BarAggregation.MINUTE,
@@ -31,9 +30,15 @@ _AGGREGATION_BY_NAME = {
 def _parse_bar_spec(spec_str: str) -> BarSpecification:
     """Parse '1-DAY-LAST' or '5-MINUTE-LAST' into a BarSpecification."""
     step_str, agg_str, price_str = spec_str.split("-")
+    aggregation = _AGGREGATION_BY_NAME.get(agg_str)
+    if aggregation is None:
+        raise ValueError(
+            f"unsupported bar aggregation {agg_str!r}; "
+            f"supported: {sorted(_AGGREGATION_BY_NAME)}"
+        )
     return BarSpecification(
         step=int(step_str),
-        aggregation=_AGGREGATION_BY_NAME[agg_str],
+        aggregation=aggregation,
         price_type=PriceType[price_str],
     )
 

@@ -4,7 +4,6 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from pathlib import Path
 
-import pytest
 from nautilus_trader.model.data import Bar
 from nautilus_trader.persistence.catalog import ParquetDataCatalog
 
@@ -30,3 +29,34 @@ def test_build_tmp_catalog_writes_readable_bars(tmp_path: Path) -> None:
     assert len(bars) == 5
     assert all(isinstance(b, Bar) for b in bars)
     assert bars[0].ts_event < bars[-1].ts_event
+
+
+def test_build_tmp_catalog_called_twice_same_root(tmp_path: Path) -> None:
+    """Calling build_tmp_catalog twice with different bar_specs on the same root
+    must produce a catalog that holds bars of both specs and exactly one instrument."""
+
+    build_tmp_catalog(
+        root=tmp_path,
+        symbol="MSFT",
+        venue="NASDAQ",
+        bar_spec="1-DAY-LAST",
+        start=datetime(2024, 1, 2, tzinfo=timezone.utc),
+        n_bars=3,
+    )
+    catalog = build_tmp_catalog(
+        root=tmp_path,
+        symbol="MSFT",
+        venue="NASDAQ",
+        bar_spec="1-MINUTE-LAST",
+        start=datetime(2024, 1, 2, 14, 30, tzinfo=timezone.utc),
+        n_bars=4,
+    )
+
+    daily_bars = catalog.bars(bar_types=["MSFT.NASDAQ-1-DAY-LAST-EXTERNAL"])
+    minute_bars = catalog.bars(bar_types=["MSFT.NASDAQ-1-MINUTE-LAST-EXTERNAL"])
+
+    assert len(daily_bars) == 3
+    assert len(minute_bars) == 4
+
+    instruments = catalog.instruments(instrument_ids=["MSFT.NASDAQ"])
+    assert len(instruments) == 1
