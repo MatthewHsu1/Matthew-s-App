@@ -15,13 +15,13 @@ from alpha_engine.config.loader import ConfigError, load_env_config
 
 def _base_backtest_config() -> dict:
     return {
-        "env_name": "backtest_alpaca",
+        "env_name": "backtest_catalog",
         "mode": "backtest",
         "strategy": {"ref": "bband_volume_setup", "params": {}},
         "venue": {"id": "nasdaq_sim", "account_kind": "paper"},
         "data": {
             "live_source": "venue",
-            "historical_source": "alpaca_historical",
+            "historical_source": "parquet_catalog",
             "instruments": ["MSFT.NASDAQ"],
             "bar_spec": "1-DAY-LAST",
             "start_date": "2025-01-01",
@@ -38,11 +38,11 @@ def _write(tmp_path: Path, payload: dict) -> Path:
     return p
 
 
-def test_loads_backtest_alpaca_with_date_fields(tmp_path: Path) -> None:
+def test_loads_backtest_catalog_with_date_fields(tmp_path: Path) -> None:
     cfg = load_env_config(_write(tmp_path, _base_backtest_config()))
     assert cfg.data.start_date == "2025-01-01"
     assert cfg.data.end_date == "2025-02-01"
-    assert cfg.data.historical_source == "alpaca_historical"
+    assert cfg.data.historical_source == "parquet_catalog"
 
 
 def test_synthetic_backtest_does_not_require_dates(tmp_path: Path) -> None:

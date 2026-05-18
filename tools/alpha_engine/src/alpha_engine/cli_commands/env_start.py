@@ -9,6 +9,38 @@ from alpha_engine.contracts.mode import Mode
 from alpha_engine.strategies import default_registry  # noqa: F401  (triggers registration)
 
 
+def _resolve_data_loader_for_backtest(cfg):
+    """Return the data_loader callable for the env's historical_source.
+
+    Pure function so we can unit-test the dispatch without booting the engine.
+    """
+    src = cfg.data.historical_source
+
+    if src == "synthetic_fixture":
+        from alpha_engine.data.sources.synthetic_fixture import (
+            build_engine_with_synthetic_bars,
+        )
+
+        def _synthetic(_cfg, _paths):
+            return build_engine_with_synthetic_bars()
+
+        return _synthetic
+
+    if src == "parquet_catalog":
+        from alpha_engine.engine.catalog_loader import build_engine_from_catalog
+
+        return build_engine_from_catalog
+
+    if src in {"alpaca_historical", "ibkr_historical"}:
+        raise ValueError(
+            f"historical_source={src!r} is no longer supported. "
+            "Backfill data via scripts/backfill_databento.py and set "
+            "historical_source='parquet_catalog' instead."
+        )
+
+    raise ValueError(f"unknown historical_source: {src!r}")
+
+
 def run(*, envs_root: Path, name: str) -> int:
     paths = EnvPaths(envs_root=envs_root, env_name=name)
     if not paths.config_path.exists():
@@ -29,21 +61,8 @@ def run(*, envs_root: Path, name: str) -> int:
     fn = dispatch_mode(cfg)
 
     if cfg.mode is Mode.BACKTEST:
-        if cfg.data.historical_source == "synthetic_fixture":
-            from alpha_engine.data.sources.synthetic_fixture import (
-                build_engine_with_synthetic_bars,
-            )
-
-            def loader(_cfg, _paths):
-                return build_engine_with_synthetic_bars()
-        else:
-            # Real historical sources route through the Parquet cache.
-            from alpha_engine.engine.cache_loader import build_engine_from_cache
-
-            def loader(_cfg, _paths):
-                return build_engine_from_cache(_cfg, _paths)
-
-        result = fn(cfg=cfg, paths=paths, data_loader=loader)
+        data_loader = _resolve_data_loader_for_backtest(cfg)
+        result = fn(cfg=cfg, paths=paths, data_loader=data_loader)
         print(f"run_id={result.run_id}", flush=True)
         print(f"summary={result.summary_path}", flush=True)
         print(f"trades={result.trades_path}", flush=True)

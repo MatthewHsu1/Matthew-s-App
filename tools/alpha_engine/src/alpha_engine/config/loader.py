@@ -23,6 +23,10 @@ class ConfigError(ValueError):
     """Raised when an env config fails schema or cross-field validation."""
 
 
+_VALID_HISTORICAL_SOURCES = frozenset({"synthetic_fixture", "parquet_catalog"})
+_REMOVED_HISTORICAL_SOURCES = frozenset({"alpaca_historical", "ibkr_historical"})
+
+
 def _load_schema() -> dict[str, Any]:
     schema_text = (
         resources.files("alpha_engine.config.schema")
@@ -58,6 +62,17 @@ def load_env_config(path: str | Path) -> EnvConfig:
         )
     if mode is Mode.BACKTEST and not historical:
         raise ConfigError("mode=backtest requires data.historical_source to be non-empty.")
+    if mode is Mode.BACKTEST and historical in _REMOVED_HISTORICAL_SOURCES:
+        raise ConfigError(
+            f"data.historical_source={historical!r} is no longer supported. "
+            "Backfill data via scripts/backfill_databento.py and set "
+            "historical_source='parquet_catalog' instead."
+        )
+    if mode is Mode.BACKTEST and historical and historical not in _VALID_HISTORICAL_SOURCES:
+        raise ConfigError(
+            f"data.historical_source={historical!r} is not a recognised value. "
+            f"Valid values: {sorted(_VALID_HISTORICAL_SOURCES)}."
+        )
     if mode is Mode.LIVE and risk_raw.get("max_daily_loss_usd") is None:
         raise ConfigError(
             "mode=live requires risk.max_daily_loss_usd to be set explicitly. "
@@ -114,6 +129,7 @@ def load_env_config(path: str | Path) -> EnvConfig:
             lookback_days=raw["data"].get("lookback_days", 365),
             start_date=start_date,
             end_date=end_date,
+            catalog_path=raw["data"].get("catalog_path"),
         ),
         risk=RiskConfig(
             max_position_usd=risk_raw.get("max_position_usd"),
