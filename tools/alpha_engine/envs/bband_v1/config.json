@@ -4,7 +4,9 @@
   "strategy": {
     "ref": "bband_volume_setup",
     "params": {
-      "tranche_size_qty": 10,
+      "tranche_dollars": 3000.0,
+      "min_price_usd": 10.0,
+      "price_band_pct": 5.0,
       "minute_bar_step": 5,
       "bband_period": 20,
       "bband_stddev": 2.0,

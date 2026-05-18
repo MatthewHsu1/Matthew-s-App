@@ -200,12 +200,46 @@ class BBandVolumeSetupStrategy(Strategy):
                 self.unsubscribe_bars(_daily_bar_type(iid))
                 self.unsubscribe_bars(_minute_bar_type(iid, self._cfg.minute_bar_step))
 
+    def _emit_warning(self, message: str) -> None:
+        # Thin seam so tests can intercept log.warning without needing a
+        # fully-booted Nautilus kernel (self.log is Cython-sealed on Actor).
+        self.log.warning(message)
+
+    def _make_market_order(self, instrument_id, order_side: OrderSide, quantity: Quantity):
+        # Thin seam over order_factory.market for testability
+        # (order_factory is Cython-sealed on Strategy).
+        return self.order_factory.market(
+            instrument_id=instrument_id,
+            order_side=order_side,
+            quantity=quantity,
+        )
+
+    def _resolve_price(self, symbol_id: str) -> float:
+        """Best-available price for sizing/guards. Prefer minute close (live)
+        and fall back to last daily close (between sessions / pre-warmup)."""
+        return self._last_minute_close.get(symbol_id, self._last_daily_close.get(symbol_id, 0.0))
+
     def _size_tranche(self, symbol_id: str) -> int:
-        # Placeholder — Task 8 implements the real sizing + guards.
-        return 0
+        price = self._resolve_price(symbol_id)
+        if price <= 0:
+            self._emit_warning(f"size_skip_no_price: {symbol_id}")
+            return 0
+        if price < self._cfg.min_price_usd:
+            self._emit_warning(f"penny_stock_reject: {symbol_id} price={price:.2f}")
+            return 0
+        last_daily = self._last_daily_close.get(symbol_id, 0.0)
+        if last_daily > 0:
+            divergence = abs(price - last_daily) / last_daily * 100.0
+            if divergence > self._cfg.price_band_pct:
+                self._emit_warning(
+                    f"price_band_reject: {symbol_id} divergence={divergence:.2f}pct"
+                )
+                return 0
+        qty = max(1, int(self._cfg.tranche_dollars / price))
+        return qty
 
     def _submit(self, symbol_id: str, side: OrderSide, qty: int) -> None:
-        order = self.order_factory.market(
+        order = self._make_market_order(
             instrument_id=self._instruments[symbol_id],
             order_side=side,
             quantity=Quantity.from_int(qty),
