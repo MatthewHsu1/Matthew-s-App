@@ -103,6 +103,32 @@ class BBandVolumeSetupStateMachine:
     def state_of(self, symbol: str) -> SymbolState:
         return self._books.get(symbol, _SymbolBook()).state
 
+    def seed_setup(
+        self,
+        *,
+        symbol: str,
+        day1_close: float,
+        day1_low: float,
+        ts: datetime,
+    ) -> None:
+        """Externally transition `symbol` from IDLE → SETUP_DETECTED.
+
+        Used by `BBandTradingStrategy` when `BBandScanActor` publishes
+        `SetupDetected`. The actor owns the rolling-window state needed to
+        evaluate the trigger; this method just records day1_close / day1_low
+        so the existing Day-2 entry path (which reads `book.day1_close` to
+        gate the green-open check) works without modification.
+
+        Idempotent in SETUP_DETECTED (re-seeding overwrites day1 fields).
+        No-op when the book is already past SETUP_DETECTED (position in flight).
+        """
+        book = self._books.setdefault(symbol, _SymbolBook())
+        if book.state not in (SymbolState.IDLE, SymbolState.SETUP_DETECTED):
+            return
+        book.state = SymbolState.SETUP_DETECTED
+        book.day1_close = day1_close
+        book.day1_low = day1_low
+
     def on_daily_bar(self, bar: DailyBar) -> Intent:
         book = self._books.setdefault(bar.symbol, _SymbolBook())
 

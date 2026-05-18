@@ -327,3 +327,66 @@ class TestExits:
         assert intent.kind is IntentKind.EXIT_ALL
         assert "max_hold" in intent.reason
         assert sm.state_of("AAPL") is SymbolState.EXITED
+
+
+class TestSeedSetup:
+    """seed_setup is the externally-driven entry point used when the scan
+    actor (not the state machine itself) detected the Day-1 trigger."""
+
+    def test_seed_setup_from_idle_transitions_to_setup_detected(self) -> None:
+        sm = BBandVolumeSetupStateMachine(_params())
+        assert sm.state_of("AAPL") is SymbolState.IDLE
+        sm.seed_setup(
+            symbol="AAPL",
+            day1_close=97.5,
+            day1_low=96.0,
+            ts=datetime(2026, 1, 21, tzinfo=timezone.utc),
+        )
+        assert sm.state_of("AAPL") is SymbolState.SETUP_DETECTED
+
+    def test_seed_setup_populates_day1_close_and_day1_low(self) -> None:
+        sm = BBandVolumeSetupStateMachine(_params())
+        sm.seed_setup(
+            symbol="AAPL",
+            day1_close=97.5,
+            day1_low=96.0,
+            ts=datetime(2026, 1, 21, tzinfo=timezone.utc),
+        )
+        # The Day-2 entry path reads day1_close to gate green-open; feed a
+        # green-open bar and verify it fires.
+        day2 = DailyBar(
+            symbol="AAPL",
+            ts=datetime(2026, 1, 22, tzinfo=timezone.utc),
+            open=98.0, high=98.0, low=98.0, close=98.0, volume=1_000_000,
+        )
+        intent = sm.on_daily_bar(day2)
+        assert intent.kind is IntentKind.ENTER_TRANCHE
+        assert intent.tranche_index == 1
+
+    def test_seed_setup_is_idempotent_on_already_setup(self) -> None:
+        """If the actor double-publishes for the same symbol, the second
+        call must not silently overwrite an in-flight position state."""
+        sm = BBandVolumeSetupStateMachine(_params())
+        sm.seed_setup(symbol="AAPL", day1_close=97.5, day1_low=96.0,
+                      ts=datetime(2026, 1, 21, tzinfo=timezone.utc))
+        # Re-seeding while still in SETUP_DETECTED is allowed (refreshes day1).
+        sm.seed_setup(symbol="AAPL", day1_close=98.0, day1_low=95.5,
+                      ts=datetime(2026, 1, 21, tzinfo=timezone.utc))
+        assert sm.state_of("AAPL") is SymbolState.SETUP_DETECTED
+
+    def test_seed_setup_ignored_when_position_already_active(self) -> None:
+        """Cannot re-seed a symbol that has already entered DAY2_ACTIVE."""
+        sm = BBandVolumeSetupStateMachine(_params())
+        sm.seed_setup(symbol="AAPL", day1_close=97.5, day1_low=96.0,
+                      ts=datetime(2026, 1, 21, tzinfo=timezone.utc))
+        sm.on_daily_bar(
+            DailyBar(symbol="AAPL",
+                     ts=datetime(2026, 1, 22, tzinfo=timezone.utc),
+                     open=98.0, high=98.0, low=98.0, close=98.0,
+                     volume=1_000_000)
+        )
+        assert sm.state_of("AAPL") is SymbolState.DAY2_ACTIVE
+        # Try to re-seed; state must not regress.
+        sm.seed_setup(symbol="AAPL", day1_close=99.0, day1_low=97.0,
+                      ts=datetime(2026, 1, 23, tzinfo=timezone.utc))
+        assert sm.state_of("AAPL") is SymbolState.DAY2_ACTIVE
