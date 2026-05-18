@@ -50,7 +50,6 @@ def test_strategy_boots_with_catalog_data_no_crash(tmp_path: Path) -> None:
     engine, instrument_ids = build_engine_from_catalog(cfg, paths)
     params = BBandVolumeSetupNautilusParams(
         instrument_ids=[str(instrument_ids[0])],
-        tranche_size_qty=10,
         minute_bar_step=5,
     )
     strategy = BBandVolumeSetupStrategy(config=params)

@@ -1,11 +1,17 @@
 """Nautilus `Strategy` wrapper around the pure BBand+Volume state machine.
 
-Subscribes to one daily and one 5-minute bar stream per configured instrument,
-routes each `Bar` event into the state machine, and translates emitted
-`Intent`s into market orders. Exit positions track quantity per symbol so
-EXIT_ALL liquidates exactly what was bought across all tranches.
-"""
+Subscribes to msgbus topic `"setup.detected"` at startup. When the scan actor
+publishes a setup, this strategy:
+  1. Seeds the state machine for the symbol via `seed_setup`.
+  2. Dynamically subscribes to the daily + 5-minute bar streams for that
+     symbol so the state machine can manage tranches and exits.
+  3. On EXIT_ALL, unsubscribes from those streams.
 
+Order sizing is dollar-based: `qty = max(1, int(tranche_dollars / price))`.
+Submissions are rejected inline when (a) the estimated fill price is more
+than `price_band_pct` away from the latest daily close, or (b) the current
+price is below `min_price_usd` (penny-stock guard).
+"""
 from __future__ import annotations
 
 from datetime import datetime, timezone
@@ -21,6 +27,7 @@ from nautilus_trader.model.identifiers import InstrumentId
 from nautilus_trader.model.objects import Quantity
 from nautilus_trader.trading.strategy import Strategy, StrategyConfig
 
+from alpha_engine.scan.setup_detected import SETUP_DETECTED_TOPIC, SetupDetected
 from alpha_engine.strategies.bband_volume_setup.state_machine import (
     BBandVolumeSetupParams,
     BBandVolumeSetupStateMachine,
@@ -33,13 +40,16 @@ from alpha_engine.strategies.registry import strategy
 
 
 class BBandVolumeSetupNautilusParams(StrategyConfig):
-    """Config exposed to env.json. Splits Nautilus-level wiring from
-    state-machine tunables so the engine can hand it to Nautilus directly."""
+    """Config exposed to env config. State-machine tunables are passed through
+    to `BBandVolumeSetupParams`; sizing/risk tunables stay at the strategy."""
 
     instrument_ids: list[str]
-    tranche_size_qty: int = 10
+    # Sizing + inline risk.
+    tranche_dollars: float = 3000.0
+    min_price_usd: float = 10.0
+    price_band_pct: float = 5.0
     minute_bar_step: int = 5
-    # State-machine tunables (all optional; defaults match Phase 2 v0 spec).
+    # State-machine tunables (defaults match the v1 strategy spec).
     bband_period: int = 20
     bband_stddev: float = 2.0
     volume_avg_period: int = 20
@@ -52,6 +62,22 @@ class BBandVolumeSetupNautilusParams(StrategyConfig):
     tranche_count: int = 3
     hard_stop_pct_below_day1_low: float = 2.0
     max_hold_days: int = 5
+
+
+def _daily_bar_type(iid: InstrumentId) -> BarType:
+    return BarType(
+        instrument_id=iid,
+        bar_spec=BarSpecification(1, BarAggregation.DAY, PriceType.LAST),
+        aggregation_source=AggregationSource.EXTERNAL,
+    )
+
+
+def _minute_bar_type(iid: InstrumentId, step: int) -> BarType:
+    return BarType(
+        instrument_id=iid,
+        bar_spec=BarSpecification(step, BarAggregation.MINUTE, PriceType.LAST),
+        aggregation_source=AggregationSource.EXTERNAL,
+    )
 
 
 @strategy("bband_volume_setup")
@@ -75,32 +101,47 @@ class BBandVolumeSetupStrategy(Strategy):
                 max_hold_days=config.max_hold_days,
             )
         )
+        # Instruments are added dynamically on setup detection. Pre-config
+        # entries (if any) are accepted for backwards compatibility but
+        # NOT subscribed at startup.
         self._instruments: dict[str, InstrumentId] = {
             iid: InstrumentId.from_str(iid) for iid in config.instrument_ids
         }
-        # Tracks total quantity held per symbol so EXIT_ALL can flatten cleanly.
-        # Nautilus's portfolio API can answer this too, but caching avoids the
-        # extra call on every minute-bar EXIT decision.
         self._held_qty: dict[str, int] = {iid: 0 for iid in config.instrument_ids}
+        # Latest closes used by price-band check + sizing.
+        self._last_daily_close: dict[str, float] = {}
+        self._last_minute_close: dict[str, float] = {}
 
     def on_start(self) -> None:
-        for _iid_str, iid in self._instruments.items():
-            self.subscribe_bars(
-                BarType(
-                    instrument_id=iid,
-                    bar_spec=BarSpecification(1, BarAggregation.DAY, PriceType.LAST),
-                    aggregation_source=AggregationSource.EXTERNAL,
-                )
-            )
-            self.subscribe_bars(
-                BarType(
-                    instrument_id=iid,
-                    bar_spec=BarSpecification(
-                        self._cfg.minute_bar_step, BarAggregation.MINUTE, PriceType.LAST
-                    ),
-                    aggregation_source=AggregationSource.EXTERNAL,
-                )
-            )
+        self._subscribe_setup_topic(SETUP_DETECTED_TOPIC, self._on_setup_detected)
+
+    def _subscribe_setup_topic(self, topic: str, handler) -> None:
+        # Extracted for testability under Cython-sealed Strategy base.
+        # Tests can reassign `msgbus` as a MagicMock; this thin seam lets
+        # them intercept the subscribe call without patching Cython internals.
+        self.msgbus.subscribe(topic=topic, handler=handler)
+
+    def _on_setup_detected(self, msg: SetupDetected) -> None:
+        # Register the symbol on first sight (the scan actor can detect a
+        # setup for any S&P 500 name — we trust its membership filter).
+        symbol_id = msg.symbol
+        if symbol_id not in self._instruments:
+            self._instruments[symbol_id] = InstrumentId.from_str(symbol_id)
+            self._held_qty.setdefault(symbol_id, 0)
+
+        self._state_machine.seed_setup(
+            symbol=symbol_id,
+            day1_close=msg.day1_close,
+            day1_low=msg.day1_low,
+            ts=msg.ts,
+        )
+        # Pre-populate the last-daily-close so the price-band check is
+        # immediately usable on the first Day-2 minute bar.
+        self._last_daily_close[symbol_id] = msg.day1_close
+
+        iid = self._instruments[symbol_id]
+        self.subscribe_bars(_daily_bar_type(iid))
+        self.subscribe_bars(_minute_bar_type(iid, self._cfg.minute_bar_step))
 
     def on_bar(self, bar: Bar) -> None:
         symbol_id = str(bar.bar_type.instrument_id)
@@ -108,6 +149,7 @@ class BBandVolumeSetupStrategy(Strategy):
         aggregation = bar.bar_type.spec.aggregation
 
         if aggregation == BarAggregation.DAY:
+            self._last_daily_close[symbol_id] = float(bar.close)
             intent = self._state_machine.on_daily_bar(
                 DailyBar(
                     symbol=symbol_id, ts=ts,
@@ -117,6 +159,7 @@ class BBandVolumeSetupStrategy(Strategy):
                 )
             )
         elif aggregation == BarAggregation.MINUTE:
+            self._last_minute_close[symbol_id] = float(bar.close)
             intent = self._state_machine.on_minute_bar(
                 MinuteBar(
                     symbol=symbol_id, ts=ts,
@@ -131,8 +174,6 @@ class BBandVolumeSetupStrategy(Strategy):
         self._apply_intent(intent, symbol_id)
 
     def on_stop(self) -> None:
-        # Flatten everything on shutdown so backtests close out positions
-        # deterministically (matches the Phase 1 toy strategy's convention).
         for symbol_id, qty in list(self._held_qty.items()):
             if qty > 0:
                 self._submit(symbol_id, OrderSide.SELL, qty)
@@ -142,15 +183,26 @@ class BBandVolumeSetupStrategy(Strategy):
         if intent.kind is IntentKind.NO_OP:
             return
         if intent.kind is IntentKind.ENTER_TRANCHE:
-            qty = self._cfg.tranche_size_qty
+            qty = self._size_tranche(symbol_id)
+            if qty <= 0:
+                return  # _size_tranche logged the reason
             self._submit(symbol_id, OrderSide.BUY, qty)
-            self._held_qty[symbol_id] += qty
+            self._held_qty[symbol_id] = self._held_qty.get(symbol_id, 0) + qty
             return
         if intent.kind is IntentKind.EXIT_ALL:
             held = self._held_qty.get(symbol_id, 0)
             if held > 0:
                 self._submit(symbol_id, OrderSide.SELL, held)
                 self._held_qty[symbol_id] = 0
+            # Stop consuming bars for this symbol.
+            iid = self._instruments.get(symbol_id)
+            if iid is not None:
+                self.unsubscribe_bars(_daily_bar_type(iid))
+                self.unsubscribe_bars(_minute_bar_type(iid, self._cfg.minute_bar_step))
+
+    def _size_tranche(self, symbol_id: str) -> int:
+        # Placeholder — Task 8 implements the real sizing + guards.
+        return 0
 
     def _submit(self, symbol_id: str, side: OrderSide, qty: int) -> None:
         order = self.order_factory.market(
