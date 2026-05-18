@@ -22,6 +22,7 @@ class _StaticContextFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:
         for k, v in self._fields.items():
             setattr(record, k, v)
+
         return True
 
 
@@ -53,13 +54,22 @@ class JsonlHandler(logging.Handler):
             self.handleError(record)
 
 
-def setup_jsonl_logging(
-    *, path: Path, run_id: str, env_name: str, mode: str
+def build_jsonl_handler(
+    path: Path, *, run_id: str, env_name: str, mode: str
 ) -> JsonlHandler:
     handler = JsonlHandler(path=Path(path))
     handler.addFilter(_StaticContextFilter(run_id=run_id, env_name=env_name, mode=mode))
+    return handler
+
+
+def setup_jsonl_logging(
+    *, path: Path, run_id: str, env_name: str, mode: str
+) -> JsonlHandler:
+    handler = build_jsonl_handler(path, run_id=run_id, env_name=env_name, mode=mode)
     logger = logging.getLogger(PACKAGE_LOGGER_NAME)
     logger.addHandler(handler)
+
     if logger.level == logging.NOTSET or logger.level > logging.INFO:
         logger.setLevel(logging.INFO)
+
     return handler

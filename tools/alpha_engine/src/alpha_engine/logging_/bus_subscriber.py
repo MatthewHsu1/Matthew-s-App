@@ -21,7 +21,7 @@ from alpha_engine.logging_.events import (
 from alpha_engine.logging_.jsonl import (
     PACKAGE_LOGGER_NAME,
     JsonlHandler,
-    _StaticContextFilter,
+    build_jsonl_handler,
 )
 
 
@@ -42,8 +42,7 @@ def attach_order_logger_to_msgbus(
     ``events.order.{strategy_id}``. The wildcard ``events.order.*`` matches all
     strategy-specific topics via the MessageBus wildcard engine.
     """
-    handler = JsonlHandler(path=Path(path))
-    handler.addFilter(_StaticContextFilter(run_id=run_id, env_name=env_name, mode=mode))
+    handler = build_jsonl_handler(path, run_id=run_id, env_name=env_name, mode=mode)
     logger = logging.getLogger(f"{PACKAGE_LOGGER_NAME}.orders")
     logger.addHandler(handler)
     logger.setLevel(logging.INFO)
@@ -56,14 +55,17 @@ def attach_order_logger_to_msgbus(
         topic="events.order.*",
         handler=lambda evt: _dispatch(evt, _on_event),
     )
+
     return handler
 
 
 def _dispatch(evt, on_event) -> None:
     if isinstance(evt, OrderSubmitted):
         on_event(ORDER_SUBMITTED, {"client_order_id": str(evt.client_order_id)})
+
     elif isinstance(evt, OrderAccepted):
         on_event(ORDER_ACKED, {"client_order_id": str(evt.client_order_id)})
+
     elif isinstance(evt, OrderFilled):
         on_event(
             ORDER_FILLED,
@@ -75,8 +77,10 @@ def _dispatch(evt, on_event) -> None:
                 "price": float(evt.last_px),
             },
         )
+
     elif isinstance(evt, OrderCanceled):
         on_event(ORDER_CANCELED, {"client_order_id": str(evt.client_order_id)})
+        
     elif isinstance(evt, OrderRejected):
         on_event(
             ORDER_REJECTED,

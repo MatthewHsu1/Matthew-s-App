@@ -7,6 +7,7 @@ from alpha_engine.risk.check import OrderProbe, PreTradeCheck, RiskContext
 def make_price_band_check(*, max_bps: int) -> PreTradeCheck:
     if max_bps <= 0:
         raise ValueError("max_bps must be > 0")
+    
     threshold = max_bps / 10_000.0
 
     def check(probe: OrderProbe, ctx: RiskContext) -> Decision:

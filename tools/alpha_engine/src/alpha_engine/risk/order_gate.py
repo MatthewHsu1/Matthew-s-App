@@ -30,6 +30,7 @@ def gate_decision(
 ) -> GateOutcome:
     """Run pre-trade checks in order. First block wins. Errors fail closed."""
     decisions: list[tuple[str, Decision]] = []
+
     for check in checks:
         try:
             d = check(probe, ctx)
@@ -40,7 +41,9 @@ def gate_decision(
                 reason="gate_internal_error",
                 decisions=decisions,
             )
+        
         decisions.append((getattr(check, "name", check.__class__.__name__), d))
+
         if not d.allowed:
             return GateOutcome(
                 allowed=False,
@@ -48,6 +51,7 @@ def gate_decision(
                 reason=d.reason,
                 decisions=decisions,
             )
+        
     return GateOutcome(allowed=True, blocking_check=None, reason=None, decisions=decisions)
 
 
