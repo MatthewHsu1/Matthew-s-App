@@ -34,6 +34,8 @@ class DataConfig:
     # ISO YYYY-MM-DD; required when mode=backtest with a non-synthetic source.
     start_date: str | None = None
     end_date: str | None = None
+    # Required when historical_source == 'parquet_catalog'.
+    catalog_path: str | None = None
 
 
 @dataclass(frozen=True)
