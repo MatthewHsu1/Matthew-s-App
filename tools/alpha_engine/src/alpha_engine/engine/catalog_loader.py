@@ -90,9 +90,9 @@ def build_engine_from_catalog(
         # Load instrument metadata from catalog.
         instruments = catalog.instruments(instrument_ids=[iid_str])
         if not instruments:
-            # No instrument definition means no bars — defer to the "no bars found"
-            # error raised below once all instruments are processed.
-            continue
+            raise CatalogLoaderError(
+                f"instrument {iid_str!r} not present in catalog at {catalog_root}"
+            )
         engine.add_instrument(instruments[0])
         instrument_ids.append(instrument_id)
 

@@ -67,9 +67,41 @@ def test_build_engine_loads_daily_and_minute_bars(tmp_path: Path) -> None:
     assert engine is not None
 
 
-def test_build_engine_raises_when_catalog_empty(tmp_path: Path) -> None:
+def test_build_engine_raises_when_instrument_missing(tmp_path: Path) -> None:
+    """Configured instrument that's not present in the catalog must error loudly."""
     catalog_root = tmp_path / "empty_catalog"
     catalog_root.mkdir()
+
+    cfg = _make_cfg(catalog_path=str(catalog_root))
+    paths = EnvPaths(envs_root=tmp_path / "envs", env_name="test_env")
+    paths.ensure_dirs()
+
+    with pytest.raises(CatalogLoaderError, match="not present in catalog"):
+        build_engine_from_catalog(cfg, paths)
+
+
+def test_build_engine_raises_when_no_bars(tmp_path: Path) -> None:
+    """Catalog has the instrument but no bars in range → 'no bars found' error."""
+    from nautilus_trader.model.currencies import USD
+    from nautilus_trader.model.identifiers import InstrumentId, Symbol, Venue
+    from nautilus_trader.model.instruments import Equity
+    from nautilus_trader.model.objects import Price, Quantity
+    from nautilus_trader.persistence.catalog import ParquetDataCatalog
+
+    catalog_root = tmp_path / "catalog_no_bars"
+    catalog_root.mkdir()
+    catalog = ParquetDataCatalog(path=str(catalog_root))
+    instrument = Equity(
+        instrument_id=InstrumentId(Symbol("MSFT"), Venue("NASDAQ")),
+        raw_symbol=Symbol("MSFT"),
+        currency=USD,
+        price_precision=2,
+        price_increment=Price.from_str("0.01"),
+        lot_size=Quantity.from_int(1),
+        ts_event=0,
+        ts_init=0,
+    )
+    catalog.write_data([instrument])
 
     cfg = _make_cfg(catalog_path=str(catalog_root))
     paths = EnvPaths(envs_root=tmp_path / "envs", env_name="test_env")
