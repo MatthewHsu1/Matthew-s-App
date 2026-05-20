@@ -11,7 +11,7 @@ against `is_day1_setup`). This module is a thin shell.
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from nautilus_trader.common.actor import Actor, ActorConfig
 from nautilus_trader.model.data import Bar, BarSpecification, BarType
@@ -71,11 +71,21 @@ class BBandScanActor(Actor):
         ]
 
     def on_start(self) -> None:
+        warmup_start = self._warmup_start_dt()
         for iid in self._instruments:
             bar_type = _daily_bar_type(iid)
             self.subscribe_bars(bar_type)
-            # Warm up the rolling window with `bband_period` prior bars.
-            self.request_bars(bar_type, limit=self._cfg.bband_period)
+            self.request_bars(bar_type, warmup_start, limit=self._cfg.bband_period)
+
+    def _warmup_start_dt(self) -> datetime:
+        """Look back ~3x the rolling window in calendar days so the historical
+        request returns at least `bband_period` prior daily bars after gaps.
+
+        Extracted as an overridable seam because `self.clock` is a Cython
+        read-only attribute and unit tests construct the actor outside a
+        kernel context where `self.clock` is None.
+        """
+        return self.clock.utc_now() - timedelta(days=self._cfg.bband_period * 3)
 
     def on_bar(self, bar: Bar) -> None:
         if bar.bar_type.spec.aggregation != BarAggregation.DAY:
