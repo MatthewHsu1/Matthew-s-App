@@ -11,7 +11,6 @@ import pandas as pd
 @dataclass(frozen=True)
 class TradeRecord:
     ts: datetime
-    run_id: str
     env_name: str
     strategy_class: str
     instrument_id: str
@@ -23,7 +22,6 @@ class TradeRecord:
 
 _COLUMNS = (
     "ts",
-    "run_id",
     "env_name",
     "strategy_class",
     "instrument_id",

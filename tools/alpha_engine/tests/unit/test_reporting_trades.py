@@ -11,7 +11,6 @@ from alpha_engine.reporting.trades import TradeRecord, write_trades_parquet
 def _trade(qty: float, px: float, side: str = "BUY") -> TradeRecord:
     return TradeRecord(
         ts=datetime(2026, 5, 14, 14, 30, 0, tzinfo=timezone.utc),
-        run_id="run_test",
         env_name="toy",
         strategy_class="ToyBuyAndHold",
         instrument_id="MSFT.NASDAQ",
@@ -28,7 +27,6 @@ def test_writes_parquet_with_expected_columns(tmp_path: Path):
     df = pd.read_parquet(path)
     assert list(df.columns) == [
         "ts",
-        "run_id",
         "env_name",
         "strategy_class",
         "instrument_id",
