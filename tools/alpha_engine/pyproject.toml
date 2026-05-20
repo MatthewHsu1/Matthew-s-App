@@ -12,11 +12,9 @@ dependencies = [
   "nautilus_trader>=1.226,<1.227",
   "nautilus-ibapi>=10.0",
   "protobuf>=4.0",
-  "jsonschema>=4.0.0",
   "pyarrow>=14.0",
   "pandas>=2.0",
   "python-dateutil>=2.8",
-  "alpaca-py>=0.30,<0.40",
 ]
 
 [project.optional-dependencies]
@@ -25,9 +23,6 @@ dev = [
   "ruff>=0.6",
 ]
 
-[project.scripts]
-alpha-engine = "alpha_engine.cli:main"
-
 [tool.setuptools]
 package-dir = {"" = "src"}
 
@@ -35,4 +30,4 @@ package-dir = {"" = "src"}
 where = ["src"]
 
 [tool.setuptools.package-data]
-alpha_engine = ["py.typed", "config/schema/*.json", "configs/templates/*.json"]
+alpha_engine = ["py.typed"]

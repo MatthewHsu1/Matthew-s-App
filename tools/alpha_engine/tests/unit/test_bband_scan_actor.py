@@ -71,6 +71,9 @@ def actor() -> BBandScanActor:
     inst.subscribe_bars = inst._fake_subscribe  # type: ignore[assignment]
     inst._fake_request = MagicMock()
     inst.request_bars = inst._fake_request  # type: ignore[assignment]
+    # `self.clock` is Cython read-only and None outside a kernel; override
+    # the Python seam instead.
+    inst._warmup_start_dt = lambda: datetime(2026, 1, 21, tzinfo=timezone.utc)  # type: ignore[assignment]
     # _publish_setup: overridable Python seam (msgbus is Cython read-only).
     inst._fake_publish = MagicMock()
     inst._publish_setup = inst._fake_publish  # type: ignore[assignment]

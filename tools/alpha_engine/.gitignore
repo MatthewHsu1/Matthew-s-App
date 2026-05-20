@@ -1,8 +1,4 @@
-envs/*/
-!envs/.gitkeep
-!envs/bband_v0/config.json
-!envs/bband_v1/config.json
-!envs/smoke/config.json
+envs/*/outputs/
 .venv/
 *.egg-info/
 __pycache__/

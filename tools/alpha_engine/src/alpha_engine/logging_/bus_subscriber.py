@@ -1,7 +1,17 @@
+"""Subscribe to Nautilus's MessageBus and collect OrderFilled events as TradeRecords.
+
+Runner scripts construct an `OrderFillRecorder`, hand it to
+`attach_order_fill_recorder(msgbus, recorder=...)`, run the backtest /
+live node, and then dump `recorder.records` into `trades.parquet` via
+`reporting.trades.write_trades_parquet`.
+
+This module replaces `logging_/jsonl.py` (custom JSONL handler) — Nautilus's
+own `LoggingConfig(log_file_format="json", log_directory=...)` covers
+engine-level structured logging.
+"""
 from __future__ import annotations
 
-import logging
-from pathlib import Path
+from datetime import datetime, timezone
 
 from nautilus_trader.model.events import (
     OrderAccepted,
@@ -11,78 +21,45 @@ from nautilus_trader.model.events import (
     OrderSubmitted,
 )
 
-from alpha_engine.logging_.events import (
-    ORDER_ACKED,
-    ORDER_CANCELED,
-    ORDER_FILLED,
-    ORDER_REJECTED,
-    ORDER_SUBMITTED,
-)
-from alpha_engine.logging_.jsonl import (
-    PACKAGE_LOGGER_NAME,
-    JsonlHandler,
-    build_jsonl_handler,
-)
+from alpha_engine.reporting.trades import TradeRecord
 
 
-def attach_order_logger_to_msgbus(
-    msgbus,
-    *,
-    path: Path,
-    run_id: str,
-    env_name: str,
-    mode: str,
-) -> JsonlHandler:
-    """Subscribe a dedicated logger to Nautilus's MessageBus for order events.
+class OrderFillRecorder:
+    """Accumulates TradeRecords produced from OrderFilled events.
 
-    Writes to a separate JSONL file from engine.jsonl so the order journal stays
-    grep-clean. Returns the handler so the engine can flush/detach on shutdown.
-
-    In Nautilus 1.226.0 order events are published on topics of the form
-    ``events.order.{strategy_id}``. The wildcard ``events.order.*`` matches all
-    strategy-specific topics via the MessageBus wildcard engine.
+    Non-fill order events are silently dropped — we only care about
+    realized trades for the report.
     """
-    handler = build_jsonl_handler(path, run_id=run_id, env_name=env_name, mode=mode)
-    logger = logging.getLogger(f"{PACKAGE_LOGGER_NAME}.orders")
-    logger.addHandler(handler)
-    logger.setLevel(logging.INFO)
-    logger.propagate = False  # do not duplicate into engine.jsonl
 
-    def _on_event(event_name: str, payload: dict) -> None:
-        logger.info(event_name, extra=payload)
+    def __init__(self, *, env_name: str, strategy_class: str) -> None:
+        self._env_name = env_name
+        self._strategy_class = strategy_class
+        self.records: list[TradeRecord] = []
 
-    msgbus.subscribe(
-        topic="events.order.*",
-        handler=lambda evt: _dispatch(evt, _on_event),
-    )
+    def handle(self, event) -> None:
+        if isinstance(event, OrderFilled):
+            ts = datetime.fromtimestamp(event.ts_event / 1e9, tz=timezone.utc)
+            self.records.append(
+                TradeRecord(
+                    ts=ts,
+                    env_name=self._env_name,
+                    strategy_class=self._strategy_class,
+                    instrument_id=str(event.instrument_id),
+                    side=event.order_side.name,
+                    quantity=float(event.last_qty),
+                    price=float(event.last_px),
+                    fees=float(getattr(event, "commission", 0.0) or 0.0),
+                )
+            )
+            return
+        if isinstance(event, (OrderSubmitted, OrderAccepted, OrderCanceled, OrderRejected)):
+            return
 
-    return handler
 
+def attach_order_fill_recorder(msgbus, *, recorder: OrderFillRecorder) -> None:
+    """Subscribe `recorder.handle` to all order events on the msgbus.
 
-def _dispatch(evt, on_event) -> None:
-    if isinstance(evt, OrderSubmitted):
-        on_event(ORDER_SUBMITTED, {"client_order_id": str(evt.client_order_id)})
-
-    elif isinstance(evt, OrderAccepted):
-        on_event(ORDER_ACKED, {"client_order_id": str(evt.client_order_id)})
-
-    elif isinstance(evt, OrderFilled):
-        on_event(
-            ORDER_FILLED,
-            {
-                "client_order_id": str(evt.client_order_id),
-                "instrument_id": str(evt.instrument_id),
-                "side": evt.order_side.name,
-                "quantity": float(evt.last_qty),
-                "price": float(evt.last_px),
-            },
-        )
-
-    elif isinstance(evt, OrderCanceled):
-        on_event(ORDER_CANCELED, {"client_order_id": str(evt.client_order_id)})
-        
-    elif isinstance(evt, OrderRejected):
-        on_event(
-            ORDER_REJECTED,
-            {"client_order_id": str(evt.client_order_id), "reason": str(evt.reason)},
-        )
+    Topic `events.order.*` matches every Nautilus order-event topic of the
+    form `events.order.{strategy_id}` via the MessageBus wildcard engine.
+    """
+    msgbus.subscribe(topic="events.order.*", handler=recorder.handle)

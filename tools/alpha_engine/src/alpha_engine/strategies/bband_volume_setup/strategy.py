@@ -36,7 +36,6 @@ from alpha_engine.strategies.bband_volume_setup.state_machine import (
     IntentKind,
     MinuteBar,
 )
-from alpha_engine.strategies.registry import strategy
 
 
 class BBandVolumeSetupNautilusParams(StrategyConfig):
@@ -80,7 +79,6 @@ def _minute_bar_type(iid: InstrumentId, step: int) -> BarType:
     )
 
 
-@strategy("bband_volume_setup")
 class BBandVolumeSetupStrategy(Strategy):
     def __init__(self, config: BBandVolumeSetupNautilusParams) -> None:
         super().__init__(config=config)
