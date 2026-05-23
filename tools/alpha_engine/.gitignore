@@ -1,4 +1,8 @@
 envs/*/outputs/
+envs/*/reports/
+envs/*/state/
+envs/*/logs/
+envs/smoke/
 .venv/
 *.egg-info/
 __pycache__/
@@ -6,3 +10,5 @@ __pycache__/
 .ruff_cache/
 .coverage
 .KILL
+
+*CONTEXT.md
