@@ -6,6 +6,7 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
@@ -140,6 +141,17 @@ public sealed class AuthEndpointsTests : IClassFixture<AuthEndpointsTests.TestAp
 
         protected override IHost CreateHost(IHostBuilder builder)
         {
+            builder.ConfigureAppConfiguration((_, configurationBuilder) =>
+            {
+                configurationBuilder.AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["Authentication:Authority"] = "https://auth.test.local",
+                    ["Authentication:Audience"] = "financial-app-api",
+                    ["Authentication:RequireHttpsMetadata"] = "false",
+                    ["Authentication:ClockSkewSeconds"] = "60"
+                });
+            });
+
             builder.ConfigureServices(services =>
             {
                 services.PostConfigureAll<JwtBearerOptions>(options =>

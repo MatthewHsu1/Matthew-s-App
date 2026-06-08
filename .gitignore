@@ -97,9 +97,6 @@ node_modules/
 # Yarn Integrity file
 .yarn-integrity
 
-# dotenv environment variables file
-.env
-
 # Docker
 .dockerignore
 
@@ -132,13 +129,28 @@ Thumbs.db
 Justfile
 AGENTS.md
 docs/
-
-# Nautilus sidecar clone (managed by bootstrap script)
-tools/nautilus-trader/
+.worktrees/
 
 # Polymarket discovery local Python artifacts
 tools/polymarket_discovery/.venv/
 tools/polymarket_discovery/.pytest_cache/
+tools/polymarket_discovery/tmp/
 tools/polymarket_discovery/**/__pycache__/
 tools/polymarket_discovery/**/*.pyc
 tools/polymarket_discovery/**/*.egg-info/
+tools/polymarket_discovery/configs
+
+# Agents
+.claude/
+
+# playwright
+.playwright-cli/
+
+# VS Code C# Dev Kit language server cache
+*.lscache
+
+# Alpha engine Phase 2
+tools/alpha_engine/cache/historical/
+tools/alpha_engine/cache/.locks/
+tools/alpha_engine/envs/*/secrets.env
+tools/alpha_engine/envs/*/.KILL

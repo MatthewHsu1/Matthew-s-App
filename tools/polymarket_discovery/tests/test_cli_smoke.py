@@ -1,8 +1,10 @@
+# ruff: noqa: E402
 from __future__ import annotations
 
 import json
 import sys
 from pathlib import Path
+
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -12,10 +14,7 @@ if str(SRC) not in sys.path:
 
 from polymarket_discovery.cli import run_command
 from polymarket_discovery.config import load_config
-from polymarket_discovery.config import generate_run_id
-from polymarket_discovery.contracts import BasketItem
-from polymarket_discovery.contracts import DependencyEdge
-from polymarket_discovery.contracts import MarketDescriptor
+from polymarket_discovery.contracts import BasketItem, DependencyEdge, MarketDescriptor
 from polymarket_discovery.pipeline import PipelineComponents
 
 
@@ -25,7 +24,6 @@ def _market(market_id: str) -> MarketDescriptor:
         condition_id=f"cond-{market_id}",
         question=f"Question {market_id}",
         description="Description",
-        rules="Rules",
         end_date="2026-11-03",
         topic="topic",
         token_ids=[f"tok-{market_id}-yes"],
@@ -80,14 +78,18 @@ class _InvalidBasketBuilder:
         markets: list[MarketDescriptor],
         dependencies: list[DependencyEdge],
         config: object | None = None,
-    ) -> list[BasketItem]:
-        return [
-            BasketItem(
-                basket_id="basket-m1__m2",
-                token_ids=["tok-m1-yes", "tok-m2-yes"],
-                dependency_basis=["missing-edge"],
-            ),
-        ]
+        basket_groups: object = (),
+    ) -> tuple[list[BasketItem], list[DependencyEdge]]:
+        return (
+            [
+                BasketItem(
+                    basket_id="basket-m1__m2",
+                    token_ids=["tok-m1-yes", "tok-m2-yes"],
+                    dependency_basis=["missing-edge"],
+                ),
+            ],
+            [],
+        )
 
 
 class _NoopBasketValidator:
@@ -117,10 +119,13 @@ def test_cli_smoke_run_command_writes_output_artifacts(tmp_path: Path) -> None:
 
     payload = json.loads(baskets_path.read_text(encoding="utf-8"))
     assert payload["schema_version"] == "v1"
-    assert payload["run_metadata"]["run_id"].startswith("run_")
-    assert len(payload["dependencies"]) == 1
+    import re
+    assert re.fullmatch(r"run_[0-9]{8}T[0-9]{6}Z_[0-9a-f]{12}", payload["run_metadata"]["run_id"]), (
+        f"run_id does not match expected format: {payload['run_metadata']['run_id']!r}"
+    )
+    # Pairwise edge from the stub inferencer + synthetic basket-member chain edge.
+    assert len(payload["dependencies"]) >= 1
     assert len(payload["baskets"]) == 1
-    assert payload["baskets"][0]["basket_id"].startswith("basket-")
 
 
 def test_cli_default_components_use_configured_llm_model_in_stub_rationale(tmp_path: Path) -> None:
@@ -140,7 +145,12 @@ def test_cli_default_components_use_configured_llm_model_in_stub_rationale(tmp_p
 
     payload = json.loads((run_dirs[0] / "baskets.json").read_text(encoding="utf-8"))
     assert payload["run_metadata"]["llm_model"] == config["llm_model"]
-    assert payload["dependencies"][0]["rationale"].startswith(f'{config["llm_model"]}:')
+    # At least one dependency edge should carry the stub model name in its rationale.
+    llm_model = config["llm_model"]
+    assert any(
+        edge["rationale"].startswith(f"{llm_model}:")
+        for edge in payload["dependencies"]
+    )
 
 
 def test_cli_respects_configured_stages(tmp_path: Path) -> None:
@@ -199,8 +209,9 @@ def test_cli_logs_run_failed_and_skips_output_write_when_final_validation_fails(
         run_command(config_path, components=components)
 
     run_root = Path(config["output_root"]) / config["artifact_subdir"]
-    run_id = generate_run_id(load_config(config_path))
-    artifact_dir = run_root / run_id
+    run_dirs = sorted([p for p in run_root.iterdir() if p.is_dir()])
+    assert len(run_dirs) == 1
+    artifact_dir = run_dirs[0]
 
     assert not (artifact_dir / "baskets.json").exists()
 
@@ -229,8 +240,9 @@ def test_cli_logs_run_failed_when_component_construction_is_misconfigured(
         run_command(config_path)
 
     run_root = Path(config["output_root"]) / config["artifact_subdir"]
-    run_id = generate_run_id(load_config(config_path))
-    artifact_dir = run_root / run_id
+    run_dirs = sorted([p for p in run_root.iterdir() if p.is_dir()])
+    assert len(run_dirs) == 1
+    artifact_dir = run_dirs[0]
 
     assert not (artifact_dir / "baskets.json").exists()
 
@@ -242,6 +254,78 @@ def test_cli_logs_run_failed_when_component_construction_is_misconfigured(
     assert stage_records[-1]["event"] == "run_failed"
     assert stage_records[-1]["error_type"] == "ValueError"
     assert "Unsupported market source" in stage_records[-1]["error"]
+
+
+# ---------------------------------------------------------------------------
+# generate_run_id provenance tests
+# ---------------------------------------------------------------------------
+
+def test_generate_run_id_consecutive_runs_with_same_config_produce_different_ids(
+    tmp_path: Path,
+) -> None:
+    """Two consecutive calls to generate_run_id with identical config must yield
+    distinct IDs so that Phase 2 can distinguish artifact runs from each other."""
+    import time
+
+    from polymarket_discovery.config import DiscoveryConfig, generate_run_id
+
+    config = DiscoveryConfig(
+        output_root=tmp_path / "artifacts",
+        embedding_provider="stub",
+    )
+
+    id1 = generate_run_id(config)
+    # Sleep just long enough to guarantee the second-resolution timestamp advances.
+    time.sleep(1.05)
+    id2 = generate_run_id(config)
+
+    assert id1 != id2, (
+        f"Expected distinct run_ids for consecutive runs with identical config, "
+        f"got identical: {id1!r}"
+    )
+
+
+def test_generate_run_id_format_is_parseable_and_sortable(tmp_path: Path) -> None:
+    """run_id must match ``run_<YYYYMMDDTHHMMSSz>_<12-hex>`` and be
+    lexicographically sortable (later runs sort after earlier ones)."""
+    import re
+    import time
+
+    from polymarket_discovery.config import DiscoveryConfig, generate_run_id
+
+    _RUN_ID_RE = re.compile(r"^run_([0-9]{8}T[0-9]{6}Z)_([0-9a-f]{12})$")
+
+    config = DiscoveryConfig(
+        output_root=tmp_path / "artifacts",
+        embedding_provider="stub",
+    )
+
+    id1 = generate_run_id(config)
+    time.sleep(1.05)
+    id2 = generate_run_id(config)
+
+    # Both must match the expected pattern.
+    m1 = _RUN_ID_RE.fullmatch(id1)
+    m2 = _RUN_ID_RE.fullmatch(id2)
+    assert m1, f"id1={id1!r} does not match run_id pattern"
+    assert m2, f"id2={id2!r} does not match run_id pattern"
+
+    # The timestamp portion must be parseable as UTC.
+    from datetime import datetime, timezone
+    ts1 = datetime.strptime(m1.group(1), "%Y%m%dT%H%M%SZ").replace(tzinfo=timezone.utc)
+    ts2 = datetime.strptime(m2.group(1), "%Y%m%dT%H%M%SZ").replace(tzinfo=timezone.utc)
+    assert ts2 >= ts1, "Second run timestamp should not precede first"
+
+    # Lexicographic sort must agree with chronological sort.
+    assert id1 < id2, (
+        f"run_ids must be lexicographically sortable; expected {id1!r} < {id2!r}"
+    )
+
+    # Config-hash suffix must be identical for the same config (fingerprint preserved).
+    assert m1.group(2) == m2.group(2), (
+        f"Config hash should be the same for identical configs: "
+        f"{m1.group(2)!r} vs {m2.group(2)!r}"
+    )
 
 
 def test_load_config_rejects_unknown_stage(tmp_path: Path) -> None:

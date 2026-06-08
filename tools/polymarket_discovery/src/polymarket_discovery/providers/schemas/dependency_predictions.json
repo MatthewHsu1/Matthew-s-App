@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["predictions"],
+  "additionalProperties": false,
+  "properties": {
+    "predictions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["pair_id", "edge_type", "confidence", "rationale"],
+        "additionalProperties": false,
+        "properties": {
+          "pair_id": {
+            "type": "string"
+          },
+          "edge_type": {
+            "type": "string",
+            "enum": ["mutually_exclusive", "conditional", "related"]
+          },
+          "confidence": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "rationale": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

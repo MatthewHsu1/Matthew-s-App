@@ -1,0 +1,44 @@
+# Shared ruff config for all Python tools in this repo.
+# Discovered automatically by ruff when run from any subdirectory.
+
+target-version = "py310"
+line-length = 100
+
+extend-exclude = [
+    ".venv",
+    ".ruff_cache",
+    "**/build",
+    "**/dist",
+    "**/__pycache__",
+    "**/_generated",
+]
+
+src = [
+    "tools/alpha_engine/src",
+    "tools/polymarket_discovery/src",
+]
+
+[lint]
+select = [
+    "E",    # pycodestyle errors
+    "F",    # pyflakes (undefined names, unused imports, etc.)
+    "I",    # isort
+    "UP",   # pyupgrade (modernize syntax for target-version)
+    "B",    # flake8-bugbear (likely bugs)
+    "SIM",  # flake8-simplify
+    "RUF",  # ruff-specific rules
+]
+
+ignore = [
+    "E501",  # line-too-long — formatter handles wrapping; warnings here just nag
+]
+
+[lint.per-file-ignores]
+# Tests can be looser — fixtures often shadow names, assert patterns trip B/SIM.
+"**/tests/**" = ["B", "SIM"]
+# __init__.py re-exports look like unused imports to F401.
+"**/__init__.py" = ["F401"]
+
+[format]
+quote-style = "double"
+indent-style = "space"

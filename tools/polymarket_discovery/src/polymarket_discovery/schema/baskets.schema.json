@@ -34,7 +34,8 @@
         },
         "run_id": {
           "type": "string",
-          "minLength": 1
+          "pattern": "^run_[0-9]{8}T[0-9]{6}Z_[0-9a-f]{12}$",
+          "description": "Unique per-execution identifier in the format run_<YYYYMMDDTHHMMSSz>_<config_hash12>. Lexicographically sortable by wall-clock time; config hash suffix enables config-change diffing."
         },
         "generated_at_utc": {
           "type": "string",
@@ -51,6 +52,10 @@
         "llm_model": {
           "type": "string",
           "minLength": 1
+        },
+        "embedding_provider": {
+          "type": "string",
+          "minLength": 1
         }
       }
     },
@@ -65,7 +70,6 @@
           "condition_id",
           "question",
           "description",
-          "rules",
           "end_date",
           "topic",
           "token_ids"
@@ -86,9 +90,6 @@
           "description": {
             "type": "string"
           },
-          "rules": {
-            "type": "string"
-          },
           "end_date": {
             "type": "string",
             "minLength": 1
@@ -104,6 +105,9 @@
               "type": "string",
               "minLength": 1
             }
+          },
+          "resolution_source": {
+            "type": "string"
           }
         }
       }
@@ -174,7 +178,9 @@
             }
           },
           "expected_sum": {
-            "type": "number"
+            "type": "number",
+            "minimum": 1.0,
+            "maximum": 1.0
           },
           "dependency_basis": {
             "type": "array",

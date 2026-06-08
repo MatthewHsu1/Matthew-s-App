@@ -70,7 +70,6 @@ def test_schema_rejects_basket_token_outside_dependency_basis_markets() -> None:
             "condition_id": "cond-m3",
             "question": "Question m3",
             "description": "Description",
-            "rules": "Rules",
             "end_date": "2026-11-03",
             "topic": "topic-01",
             "token_ids": ["tok-alien-yes"],

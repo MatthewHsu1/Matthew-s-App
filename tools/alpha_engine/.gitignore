@@ -1,0 +1,14 @@
+envs/*/outputs/
+envs/*/reports/
+envs/*/state/
+envs/*/logs/
+envs/smoke/
+.venv/
+*.egg-info/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+.coverage
+.KILL
+
+*CONTEXT.md

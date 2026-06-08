@@ -1,3 +1,4 @@
+# ruff: noqa: E402
 from __future__ import annotations
 
 import sys
@@ -11,11 +12,8 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from polymarket_discovery.config import DiscoveryConfig
-from polymarket_discovery.contracts import BasketItem
-from polymarket_discovery.contracts import DependencyEdge
-from polymarket_discovery.contracts import MarketDescriptor
-from polymarket_discovery.stages import DefaultBasketBuilder
-from polymarket_discovery.stages import DefaultBasketValidator
+from polymarket_discovery.contracts import BasketItem, DependencyEdge, MarketDescriptor
+from polymarket_discovery.stages import DefaultBasketBuilder, DefaultBasketValidator
 
 
 def _market(market_id: str, token_ids: list[str]) -> MarketDescriptor:
@@ -24,7 +22,6 @@ def _market(market_id: str, token_ids: list[str]) -> MarketDescriptor:
         condition_id=f"cond-{market_id}",
         question=f"Question {market_id}",
         description="Description",
-        rules="Rules",
         end_date="2026-11-03",
         topic="topic",
         token_ids=token_ids,
@@ -52,13 +49,14 @@ def test_default_basket_builder_skips_low_confidence_edges_by_default(tmp_path: 
     markets = [_market("m1", ["tok-a-yes"]), _market("m2", ["tok-b-yes"])]
     dependencies = [_edge("m1__m2", "m1", "m2", 0.6)]
 
-    baskets = DefaultBasketBuilder().build(
+    baskets, synthetic_edges = DefaultBasketBuilder().build(
         markets,
         dependencies,
-        DiscoveryConfig(output_root=tmp_path),
+        DiscoveryConfig(output_root=tmp_path, embedding_provider="stub"),
     )
 
     assert baskets == []
+    assert synthetic_edges == []
 
 
 def test_default_basket_builder_honors_confidence_threshold_override(tmp_path: Path) -> None:
@@ -66,6 +64,7 @@ def test_default_basket_builder_honors_confidence_threshold_override(tmp_path: P
     dependencies = [_edge("m1__m2", "m1", "m2", 0.92)]
     config = DiscoveryConfig(
         output_root=tmp_path,
+        embedding_provider="stub",
         params={
             "basket_builder": {
                 "confidence_threshold": 0.95,
@@ -73,9 +72,10 @@ def test_default_basket_builder_honors_confidence_threshold_override(tmp_path: P
         },
     )
 
-    baskets = DefaultBasketBuilder().build(markets, dependencies, config)
+    baskets, synthetic_edges = DefaultBasketBuilder().build(markets, dependencies, config)
 
     assert baskets == []
+    assert synthetic_edges == []
 
 
 def test_default_basket_builder_disables_conservative_gating_when_configured(tmp_path: Path) -> None:
@@ -83,6 +83,7 @@ def test_default_basket_builder_disables_conservative_gating_when_configured(tmp
     dependencies = [_edge("m1__m2", "m1", "m2", 0.6)]
     config = DiscoveryConfig(
         output_root=tmp_path,
+        embedding_provider="stub",
         params={
             "basket_builder": {
                 "conservative_gating": False,
@@ -91,10 +92,11 @@ def test_default_basket_builder_disables_conservative_gating_when_configured(tmp
         },
     )
 
-    baskets = DefaultBasketBuilder().build(markets, dependencies, config)
+    baskets, synthetic_edges = DefaultBasketBuilder().build(markets, dependencies, config)
 
     assert len(baskets) == 1
     assert baskets[0].basket_id == "basket-m1__m2"
+    assert synthetic_edges == []
 
 
 @pytest.mark.parametrize(
@@ -106,6 +108,7 @@ def test_default_basket_builder_rejects_invalid_confidence_threshold(tmp_path: P
     dependencies = [_edge("m1__m2", "m1", "m2", 0.95)]
     config = DiscoveryConfig(
         output_root=tmp_path,
+        embedding_provider="stub",
         params={
             "basket_builder": {
                 "confidence_threshold": threshold,
@@ -124,7 +127,7 @@ def test_default_basket_builder_constructs_deduped_valid_basket(tmp_path: Path) 
     ]
     dependencies = [_edge("m1__m2", "m1", "m2", 0.95)]
 
-    baskets = DefaultBasketBuilder().build(markets, dependencies, DiscoveryConfig(output_root=tmp_path))
+    baskets, synthetic_edges = DefaultBasketBuilder().build(markets, dependencies, DiscoveryConfig(output_root=tmp_path, embedding_provider="stub"))
 
     assert len(baskets) == 1
     basket = baskets[0]
@@ -132,15 +135,17 @@ def test_default_basket_builder_constructs_deduped_valid_basket(tmp_path: Path) 
     assert basket.token_ids == ["tok-shared", "tok-a-yes", "tok-b-yes"]
     assert basket.expected_sum == 1.0
     assert basket.dependency_basis == ["m1__m2"]
+    assert synthetic_edges == []
 
 
 def test_default_basket_builder_skips_related_edges_in_conservative_mode(tmp_path: Path) -> None:
     markets = [_market("m1", ["tok-a-yes"]), _market("m2", ["tok-b-yes"])]
     dependencies = [_edge("m1__m2", "m1", "m2", 0.99, edge_type="related")]
 
-    baskets = DefaultBasketBuilder().build(markets, dependencies, DiscoveryConfig(output_root=tmp_path))
+    baskets, synthetic_edges = DefaultBasketBuilder().build(markets, dependencies, DiscoveryConfig(output_root=tmp_path, embedding_provider="stub"))
 
     assert baskets == []
+    assert synthetic_edges == []
 
 
 def test_default_basket_builder_can_build_related_edges_when_conservative_mode_disabled(tmp_path: Path) -> None:
@@ -148,6 +153,7 @@ def test_default_basket_builder_can_build_related_edges_when_conservative_mode_d
     dependencies = [_edge("m1__m2", "m1", "m2", 0.99, edge_type="related")]
     config = DiscoveryConfig(
         output_root=tmp_path,
+        embedding_provider="stub",
         params={
             "basket_builder": {
                 "conservative_gating": False,
@@ -155,19 +161,21 @@ def test_default_basket_builder_can_build_related_edges_when_conservative_mode_d
         },
     )
 
-    baskets = DefaultBasketBuilder().build(markets, dependencies, config)
+    baskets, synthetic_edges = DefaultBasketBuilder().build(markets, dependencies, config)
 
     assert len(baskets) == 1
     assert baskets[0].dependency_basis == ["m1__m2"]
+    assert synthetic_edges == []
 
 
 def test_default_basket_builder_skips_dependencies_with_orphan_market_refs(tmp_path: Path) -> None:
     markets = [_market("m1", ["tok-a-yes"])]
     dependencies = [_edge("m1__missing", "m1", "missing", 0.95)]
 
-    baskets = DefaultBasketBuilder().build(markets, dependencies, DiscoveryConfig(output_root=tmp_path))
+    baskets, synthetic_edges = DefaultBasketBuilder().build(markets, dependencies, DiscoveryConfig(output_root=tmp_path, embedding_provider="stub"))
 
     assert baskets == []
+    assert synthetic_edges == []
 
 
 def test_default_basket_validator_rejects_empty_dependency_basis() -> None:

@@ -27,7 +27,14 @@ def to_output_dict(document: ArbitrageOutputDocument | dict[str, Any]) -> dict[s
         return document
 
     if is_dataclass(document):
-        return asdict(document)
+        payload = asdict(document)
+        # Normalize expected_sum to exactly 1.0 at the in-memory→serialized seam so
+        # that sub-epsilon floating-point drift from upstream computation never reaches
+        # the artifact; the validator permits ±1e-9, but the schema enforces strict equality.
+        for basket in payload.get("baskets", []):
+            if isinstance(basket, dict) and abs(basket.get("expected_sum", 0) - 1.0) <= 1e-9:
+                basket["expected_sum"] = 1.0
+        return payload
 
     raise TypeError("document must be an ArbitrageOutputDocument or dict")
 
@@ -87,7 +94,7 @@ def _validate_fallback(payload: dict[str, Any]) -> None:
             raise OutputValidationError(f"markets[{index}] must be an object")
         _require_keys(
             market,
-            ["market_id", "condition_id", "question", "description", "rules", "end_date", "topic", "token_ids"],
+            ["market_id", "condition_id", "question", "description", "end_date", "topic", "token_ids"],
             f"markets[{index}]",
         )
         if not isinstance(market.get("token_ids"), list) or not market["token_ids"]:
@@ -170,13 +177,16 @@ def _validate_cross_entity_consistency(payload: dict[str, Any]) -> None:
         dependency_ids.add(edge_id)
         dependency_market_refs[edge_id] = (from_market_id, to_market_id)
 
+    all_basket_token_ids: set[str] = set()
+
     for basket_index, basket in enumerate(baskets):
         if not isinstance(basket, dict):
             raise OutputValidationError(f"baskets[{basket_index}] must be an object")
         dependency_basis = basket.get("dependency_basis")
         if not isinstance(dependency_basis, list):
             raise OutputValidationError(f"baskets[{basket_index}].dependency_basis must be an array")
-        allowed_token_ids: set[str] = set()
+
+        required_token_ids: set[str] = set()
         for basis_index, edge_id in enumerate(dependency_basis):
             resolved_edge_id = _require_non_empty_string(
                 edge_id,
@@ -187,20 +197,45 @@ def _validate_cross_entity_consistency(payload: dict[str, Any]) -> None:
                     f"baskets[{basket_index}].dependency_basis[{basis_index}] references missing dependency edge ID: {resolved_edge_id}"
                 )
             from_market_id, to_market_id = dependency_market_refs[resolved_edge_id]
-            allowed_token_ids.update(market_tokens_by_id[from_market_id])
-            allowed_token_ids.update(market_tokens_by_id[to_market_id])
+            required_token_ids.update(market_tokens_by_id[from_market_id])
+            required_token_ids.update(market_tokens_by_id[to_market_id])
+
         token_ids = basket.get("token_ids")
         if not isinstance(token_ids, list):
             raise OutputValidationError(f"baskets[{basket_index}].token_ids must be an array")
+
+        basket_token_set: set[str] = set()
         for token_index, token_id in enumerate(token_ids):
             resolved_token_id = _require_non_empty_string(
                 token_id,
                 f"baskets[{basket_index}].token_ids[{token_index}]",
             )
-            if resolved_token_id not in allowed_token_ids:
+            if resolved_token_id not in required_token_ids:
                 raise OutputValidationError(
                     f"baskets[{basket_index}].token_ids[{token_index}] references token outside dependency_basis markets: {resolved_token_id}"
                 )
+            basket_token_set.add(resolved_token_id)
+
+        # Completeness check: the basket must cover all token IDs from its
+        # participating markets so that prices sum toward 1.00.
+        missing_tokens = required_token_ids - basket_token_set
+        if missing_tokens:
+            missing_sorted = ", ".join(sorted(missing_tokens))
+            raise OutputValidationError(
+                f"baskets[{basket_index}] is missing token ids from its dependency_basis markets "
+                f"(incomplete outcome set): {missing_sorted}"
+            )
+
+        # Cross-basket overlap check: no two baskets may share a token ID,
+        # which would cause double-allocated capital in NautilusTrader.
+        overlap = basket_token_set & all_basket_token_ids
+        if overlap:
+            overlapping = ", ".join(sorted(overlap))
+            raise OutputValidationError(
+                f"baskets[{basket_index}] shares token ids with a previous basket "
+                f"(overlapping outcome sets): {overlapping}"
+            )
+        all_basket_token_ids.update(basket_token_set)
 
 
 def _require_non_empty_string(value: Any, path: str) -> str:

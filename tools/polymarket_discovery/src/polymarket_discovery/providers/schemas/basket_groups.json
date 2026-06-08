@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["baskets"],
+  "additionalProperties": false,
+  "properties": {
+    "baskets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["basket_id", "market_ids", "rationale"],
+        "additionalProperties": false,
+        "properties": {
+          "basket_id": {
+            "type": "string"
+          },
+          "market_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1
+          },
+          "rationale": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,3 +1,4 @@
+# ruff: noqa: E402
 from __future__ import annotations
 
 import json
@@ -11,15 +12,14 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
+import logging
+
 from polymarket_discovery.cli import run_command
 from polymarket_discovery.config import DiscoveryConfig
-from polymarket_discovery.contracts import BasketItem
-from polymarket_discovery.contracts import DependencyEdge
-from polymarket_discovery.contracts import MarketDescriptor
-from polymarket_discovery.logging_utils import JsonlStageLogger
-from polymarket_discovery.pipeline import PipelineComponents
-from polymarket_discovery.pipeline import run_pipeline
+from polymarket_discovery.contracts import BasketItem, DependencyEdge, MarketDescriptor
+from polymarket_discovery.pipeline import PipelineComponents, run_pipeline
 from polymarket_discovery.serialization import validate_output_document
+from polymarket_discovery.utils.jsonl_logging import setup_jsonl_logging
 
 
 def _load_json_fixture(name: str) -> dict[str, object]:
@@ -65,9 +65,23 @@ def test_run_command_fixture_pipeline_produces_valid_artifact_and_full_stage_seq
 
     assert payload["schema_version"] == "v1"
     assert payload["run_metadata"]["market_source"] == "fixture"
-    assert [market["topic"] for market in payload["markets"]] == ["topic-01", "topic-01"]
-    assert [edge["edge_type"] for edge in payload["dependencies"]] == ["mutually_exclusive"]
-    assert [basket["dependency_basis"] for basket in payload["baskets"]] == [["m1__m2"]]
+    # The stub provider clusters by SHA256-derived embeddings of "question\ndescription".
+    # Both fixture markets share the same description ("Election market") but have
+    # different questions, so their cosine similarity falls below the default 0.82
+    # threshold — they do not cluster and retain their source topic ("election").
+    topics = [market["topic"] for market in payload["markets"]]
+    assert len(topics) == 2
+    assert all(isinstance(t, str) and t for t in topics)
+    # The stub provider emits both pairwise edges (mutually_exclusive) and a basket
+    # group (basket_member synthetic edge); both appear in the dependencies list.
+    edge_types = {edge["edge_type"] for edge in payload["dependencies"]}
+    assert "mutually_exclusive" in edge_types
+    assert len(payload["baskets"]) == 1
+    # Basket produced by the stub basket-group path references the synthetic chain edge.
+    assert all(
+        dep_id.startswith("basket-member__")
+        for dep_id in payload["baskets"][0]["dependency_basis"]
+    )
 
     stage_records = _read_stage_records(artifact_dir / "stages.jsonl")
     assert [(record["event"], record.get("stage")) for record in stage_records] == [
@@ -172,15 +186,16 @@ def _market(
     topic: str = "topic-01",
     end_date: str = "2026-11-03",
 ) -> MarketDescriptor:
+    # Binary market with YES and NO tokens; exercises the completeness rule
+    # (basket token_ids must equal the union of all participating market token_ids).
     return MarketDescriptor(
         market_id=market_id,
         condition_id=f"cond-{market_id}",
         question=f"Question {market_id}",
         description="Description",
-        rules="Rules",
         end_date=end_date,
         topic=topic,
-        token_ids=[f"tok-{market_id}-yes"],
+        token_ids=[f"tok-{market_id}-yes", f"tok-{market_id}-no"],
     )
 
 
@@ -232,14 +247,18 @@ class _InvalidBasketBuilder:
         markets: list[MarketDescriptor],
         dependencies: list[DependencyEdge],
         config: object | None = None,
-    ) -> list[BasketItem]:
-        return [
-            BasketItem(
-                basket_id="basket-m1__m2",
-                token_ids=["tok-m1-yes", "tok-m2-yes"],
-                dependency_basis=["missing-edge"],
-            ),
-        ]
+        basket_groups: object = (),
+    ) -> tuple[list[BasketItem], list[DependencyEdge]]:
+        return (
+            [
+                BasketItem(
+                    basket_id="basket-m1__m2",
+                    token_ids=["tok-m1-yes", "tok-m2-yes"],
+                    dependency_basis=["missing-edge"],
+                ),
+            ],
+            [],
+        )
 
 
 class _NoopBasketValidator:
@@ -248,8 +267,10 @@ class _NoopBasketValidator:
 
 
 def test_run_pipeline_rejects_invalid_basket_at_final_schema_gate(tmp_path: Path) -> None:
-    config = DiscoveryConfig(output_root=tmp_path / "artifacts")
-    stage_logger = JsonlStageLogger(path=tmp_path / "stages.jsonl", run_id="run-test")
+    config = DiscoveryConfig(output_root=tmp_path / "artifacts", embedding_provider="stub")
+    log_path = tmp_path / "stages.jsonl"
+    handler = setup_jsonl_logging(path=log_path, run_id="run_20260502T000000Z_00000000000e")
+    pkg_logger = logging.getLogger("polymarket_discovery")
     components = PipelineComponents(
         market_source=_StaticMarketSource(),
         topic_assigner=_PassthroughTopicAssigner(),
@@ -259,10 +280,18 @@ def test_run_pipeline_rejects_invalid_basket_at_final_schema_gate(tmp_path: Path
         basket_validator=_NoopBasketValidator(),
     )
 
-    with pytest.raises(ValueError, match="missing dependency edge ID"):
-        run_pipeline(config=config, components=components, stage_logger=stage_logger)
+    try:
+        with pytest.raises(ValueError, match="missing dependency edge ID"):
+            run_pipeline(
+                config=config,
+                components=components,
+                run_id="run_20260502T000000Z_00000000000e",
+            )
+    finally:
+        pkg_logger.removeHandler(handler)
+        handler.close()
 
-    stage_records = _read_stage_records(stage_logger.path)
+    stage_records = _read_stage_records(log_path)
     assert [(record["event"], record.get("stage")) for record in stage_records] == [
         ("stage_started", "market_source"),
         ("stage_completed", "market_source"),

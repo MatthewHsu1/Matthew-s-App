@@ -1,6 +1,3 @@
-using Backend.Application.DependencyInjection;
-using Backend.Infrastructure.DependencyInjection;
-
 namespace Backend.Api.DependencyInjection;
 
 public static class ApiDI
@@ -25,10 +22,6 @@ public static class ApiDI
         services.AddOpenApi();
 
         services.AddRateLimiting();
-
-        services.AddInfrastructure(config);
-
-        services.AddApplication(config);
 
         services.AddApiAuth(config);
 
