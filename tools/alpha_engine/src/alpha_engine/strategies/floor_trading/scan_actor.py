@@ -1,13 +1,10 @@
-"""Nautilus Actor that screens the universe for Day-1 setups.
+"""Nautilus Actor that screens the universe for Floor Trading Day-1 setups.
 
-Subscribes to 1-day bars for every configured instrument, evaluates
-`is_day1_setup` per bar via `BBandScanLogic`, and publishes a `SetupDetected`
-event on msgbus topic `"setup.detected"` for every positive hit. The
-strategy (`BBandTradingStrategy`) consumes those events and seeds its state
-machine on receipt.
-
-All business logic lives in `BBandScanLogic` (Nautilus-free, fully unit-tested
-against `is_day1_setup`). This module is a thin shell.
+Subscribes to 1-day bars for every configured instrument, evaluates the
+Day-1 rule per bar via FloorScanLogic, and publishes a SetupDetected
+event on msgbus topic "setup.detected" for every positive hit. The
+strategy (FloorTradingStrategy) consumes those events and seeds its
+state machine on receipt.
 """
 from __future__ import annotations
 
@@ -22,14 +19,12 @@ from nautilus_trader.model.enums import (
 )
 from nautilus_trader.model.identifiers import InstrumentId
 
-from alpha_engine.scan.bband_scan_logic import BBandScanLogic, ScanBar
 from alpha_engine.scan.setup_detected import SETUP_DETECTED_TOPIC
-from alpha_engine.strategies.bband_volume_setup.params import (
-    BBandVolumeSetupParams,
-)
+from alpha_engine.strategies.floor_trading.params import FloorTradingParams
+from alpha_engine.strategies.floor_trading.scan_logic import FloorScanLogic, ScanBar
 
 
-class BBandScanActorConfig(ActorConfig):
+class FloorScanActorConfig(ActorConfig):
     instrument_ids: list[str]
     bband_period: int = 20
     bband_stddev: float = 2.0
@@ -45,27 +40,17 @@ def _daily_bar_type(iid: InstrumentId) -> BarType:
     )
 
 
-class BBandScanActor(Actor):
-    def __init__(self, config: BBandScanActorConfig) -> None:
+class FloorScanActor(Actor):
+    def __init__(self, config: FloorScanActorConfig) -> None:
         super().__init__(config=config)
         self._cfg = config
-        # Strategy and scan share these tunables; spike/surge are strategy-only
-        # so we pass placeholder zeros — they are not read by `is_day1_setup`.
-        params = BBandVolumeSetupParams(
+        params = FloorTradingParams(
             bband_period=config.bband_period,
             bband_stddev=config.bband_stddev,
             volume_avg_period=config.volume_avg_period,
             day1_volume_multiplier=config.day1_volume_multiplier,
-            spike_volume_multiplier=0.0,
-            spike_price_move_pct=0.0,
-            surge_volume_multiplier=0.0,
-            surge_requires_price_below_open=False,
-            surge_min_gap_minutes=0,
-            tranche_count=0,
-            hard_stop_pct_below_day1_low=0.0,
-            max_hold_days=0,
         )
-        self._logic = BBandScanLogic(params)
+        self._logic = FloorScanLogic(params)
         self._instruments: list[InstrumentId] = [
             InstrumentId.from_str(iid) for iid in config.instrument_ids
         ]
@@ -79,11 +64,11 @@ class BBandScanActor(Actor):
 
     def _warmup_start_dt(self) -> datetime:
         """Look back ~3x the rolling window in calendar days so the historical
-        request returns at least `bband_period` prior daily bars after gaps.
+        request returns at least bband_period prior daily bars after gaps.
 
-        Extracted as an overridable seam because `self.clock` is a Cython
+        Extracted as an overridable seam because self.clock is a Cython
         read-only attribute and unit tests construct the actor outside a
-        kernel context where `self.clock` is None.
+        kernel context where self.clock is None.
         """
         return self.clock.utc_now() - timedelta(days=self._cfg.bband_period * 3)
 
@@ -106,6 +91,6 @@ class BBandScanActor(Actor):
         """Publish a SetupDetected payload on the msgbus.
 
         Extracted as an overridable method so tests can inject a spy without
-        requiring Nautilus's Cython-sealed `msgbus` attribute to be writable.
+        requiring Nautilus's Cython-sealed msgbus attribute to be writable.
         """
         self.msgbus.publish(topic=SETUP_DETECTED_TOPIC, msg=payload)

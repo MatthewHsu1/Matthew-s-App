@@ -1,8 +1,10 @@
-"""Pure-Python rolling-window driver for the BBand+volume Day-1 detection.
+"""Per-symbol rolling-window driver for Floor Trading's Day-1 scan.
 
-Used by `BBandScanActor`. Kept Nautilus-free so the detection logic can be
-unit-tested with synthetic bars in milliseconds. `is_day1_setup` is reused
-verbatim — this module only manages the rolling window and packaging.
+Used by FloorScanActor. Kept Nautilus-free so the detection logic can be
+unit-tested with synthetic daily bars in milliseconds. The actor calls
+on_daily_bar on every closed daily bar; this module manages the rolling
+window of prior closes + volumes and packages a SetupDetected payload
+whenever is_day1_setup fires.
 """
 from __future__ import annotations
 
@@ -11,13 +13,8 @@ from dataclasses import dataclass
 from datetime import datetime
 
 from alpha_engine.scan.setup_detected import SetupDetected
-from alpha_engine.strategies.bband_volume_setup.detection import (
-    Day1Inputs,
-    is_day1_setup,
-)
-from alpha_engine.strategies.bband_volume_setup.params import (
-    BBandVolumeSetupParams,
-)
+from alpha_engine.strategies.floor_trading.detection import Day1Inputs, is_day1_setup
+from alpha_engine.strategies.floor_trading.params import FloorTradingParams
 
 
 @dataclass(frozen=True)
@@ -39,19 +36,18 @@ class _SymbolWindow:
         self.volumes: deque[float] = deque()
 
 
-class BBandScanLogic:
+class FloorScanLogic:
     """Per-symbol rolling windows + Day-1 trigger evaluation."""
 
-    def __init__(self, params: BBandVolumeSetupParams) -> None:
+    def __init__(self, params: FloorTradingParams) -> None:
         self._params = params
         self._windows: dict[str, _SymbolWindow] = {}
 
     def on_daily_bar(self, bar: ScanBar) -> SetupDetected | None:
         """Evaluate today's bar against the prior-window baseline, then append.
 
-        Returns a `SetupDetected` payload iff `is_day1_setup` fires. Append
-        happens AFTER evaluation so today's volume cannot inflate today's
-        baseline (mirrors `BBandVolumeSetupStateMachine.on_daily_bar`).
+        Append happens AFTER evaluation so today's volume cannot inflate its
+        own baseline.
         """
         window = self._windows.setdefault(bar.symbol, _SymbolWindow())
 
@@ -80,5 +76,10 @@ class BBandScanLogic:
         return result
 
     def window_size(self, symbol: str) -> int:
+        """Return the current count of bars in the rolling window for `symbol`.
+
+        Used by tests to verify the rolling window is bounded by `bband_period`.
+        Returns 0 for unknown symbols.
+        """
         window = self._windows.get(symbol)
         return 0 if window is None else len(window.closes)

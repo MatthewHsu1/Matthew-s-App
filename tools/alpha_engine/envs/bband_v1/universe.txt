@@ -1,7 +1,0 @@
-# bband_v1 universe — one InstrumentId per line.
-# Whitespace and lines beginning with '#' are ignored at load time.
-AAPL.NASDAQ
-MSFT.NASDAQ
-NVDA.NASDAQ
-AMZN.NASDAQ
-GOOGL.NASDAQ

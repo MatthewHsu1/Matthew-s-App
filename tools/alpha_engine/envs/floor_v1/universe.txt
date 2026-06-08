@@ -1,0 +1,7 @@
+# floor_v1 universe — one InstrumentId per line.
+# Smoke universe: 3 synthetic symbols matched to the test fixture.
+# The full Russell 1000 ex-mega-cap list lands once Plan 1 (data
+# pipeline) populates the catalog with real symbols.
+XYZ.NASDAQ
+ABC.NASDAQ
+DEF.NASDAQ
